@@ -47,10 +47,11 @@ export default function HelpPage() {
             .
           </li>
           <li>
-            On Vercel → Environment Variables, set <code>OMKAR_API_KEY</code>. If you self-host, also set{" "}
-            <code>OMKAR_CONTACT_API_URL</code> to your instance (it must expose <code>/contacts?website=</code>).
+            On Vercel → Environment Variables, set <code>OMKAR_API_KEY</code> to the same key as local{" "}
+            <code>.env</code>. Clientra sends it as the <code>API-Key</code> header to{" "}
+            <code>/website-email-contact/v1/contacts</code>.
           </li>
-          <li>Redeploy, then use Scan public contacts. Clientra crawls locally first, then Omkar if configured.</li>
+          <li>Redeploy, then use Scan public contacts on a company domain. Local crawl runs first, then Omkar.</li>
         </ol>
       </Card>
 

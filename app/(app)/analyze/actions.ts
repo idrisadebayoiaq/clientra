@@ -239,7 +239,7 @@ ${JSON.stringify(evidence)}`;
         fullName: null,
         businessName: page.ogSiteName ?? evidence.company,
       };
-      if (!contact.email) {
+      if (!contact.email || !contact.phone || !contact.linkedinUrl) {
         const siteUrl = page.finalUrl ?? url;
         if (siteUrl) {
           contact = mergeContacts(contact, await enrichWebsiteContact(siteUrl, domain));

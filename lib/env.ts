@@ -93,7 +93,7 @@ export function isAdzunaConfigured(): boolean {
 }
 
 export function isOmkarConfigured(): boolean {
-  return Boolean(normalize(process.env.OMKAR_API_KEY) || normalize(process.env.OMKAR_CONTACT_API_URL));
+  return Boolean(normalize(process.env.OMKAR_API_KEY));
 }
 
 export function isProblemDiscoveryConfigured(): boolean {

@@ -66,8 +66,9 @@ Public site crawl is built in and needs no key.
 
 Omkar deeper crawl (optional):
 
-- `OMKAR_API_KEY` — from https://www.omkar.cloud/auth/sign-up?redirect=/api-key
-- `OMKAR_CONTACT_API_URL` — only if you self-host Omkar; must expose `GET /contacts?website=`
+- `OMKAR_API_KEY` — from https://www.omkar.cloud/auth/sign-up?redirect=/api-key (send as HTTP header `API-Key`)
+- `OMKAR_CONTACT_API_URL` — optional override; default hosted base is `https://website-email-contact-scraper.omkar.cloud`
+- Endpoint path used by Clientra: `/website-email-contact/v1/contacts`
 - `RAPIDAPI_KEY` / `RAPIDAPI_HOST` — only if you route Omkar through RapidAPI
 
 Hacker News problem discovery uses the public Algolia API and needs no key.

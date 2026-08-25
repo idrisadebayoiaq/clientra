@@ -99,7 +99,7 @@ export default async function IntegrationsPage({
           {
             name: "Omkar contact scraper",
             ready: isOmkarConfigured(),
-            body: "Optional deeper crawl. Add OMKAR_API_KEY on Vercel after signing up at omkar.cloud, or point OMKAR_CONTACT_API_URL at a self-hosted Omkar instance.",
+            body: "Optional deeper crawl. Add OMKAR_API_KEY on Vercel (same value as local .env). Clientra calls Omkar with the API-Key header during Scan public contacts and Run analysis.",
           },
           {
             name: "urlscan",
