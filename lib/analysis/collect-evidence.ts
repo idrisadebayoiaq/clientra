@@ -45,11 +45,6 @@ type UrlscanHit = {
   };
 };
 
-type UrlscanResult = UrlscanHit & {
-  meta?: { processors?: { wappa?: { data?: Array<{ app?: string }> } } };
-  verdicts?: { overall?: { malicious?: boolean } };
-};
-
 const TECH_SIGNATURES: Array<{ name: string; pattern: RegExp; platform?: boolean; ecommerce?: boolean }> = [
   { name: "Shopify", pattern: /cdn\.shopify\.com|Shopify\.theme|myshopify\.com/i, platform: true, ecommerce: true },
   { name: "WooCommerce", pattern: /woocommerce|wp-content\/plugins\/woocommerce/i, platform: true, ecommerce: true },
@@ -180,7 +175,7 @@ function visibleText(html: string) {
   return decode(withoutScripts).slice(0, 2500);
 }
 
-async function fetchHtml(url: string, timeoutMs = 12000) {
+async function fetchHtml(url: string, timeoutMs = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -337,30 +332,26 @@ function mergeEvidence(html: WebsiteEvidence | null, scan: Partial<WebsiteEviden
 }
 
 async function urlscanSearchHomepage(domain: string): Promise<UrlscanHit | null> {
-  const query = `page.domain:"${domain}" AND page.status:200`;
-  const response = await fetch(`https://urlscan.io/api/v1/search/?q=${encodeURIComponent(query)}&size=15`, {
-    headers: urlscanHeaders(),
-  });
-  if (!response.ok) return null;
-  const json = (await response.json()) as { results?: UrlscanHit[] };
-  const ranked = (json.results ?? [])
-    .map((hit) => ({ hit, score: homepageScore(hit, domain) }))
-    .filter((row) => row.score >= 0)
-    .sort((a, b) => b.score - a.score);
-  return ranked[0]?.hit ?? json.results?.[0] ?? null;
-}
-
-async function urlscanByUuid(uuid: string) {
-  const response = await fetch(`https://urlscan.io/api/v1/result/${uuid}/`, {
-    headers: urlscanHeaders(),
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as UrlscanResult;
+  try {
+    const query = `page.domain:"${domain}" AND page.status:200`;
+    const response = await fetch(`https://urlscan.io/api/v1/search/?q=${encodeURIComponent(query)}&size=15`, {
+      headers: urlscanHeaders(),
+    });
+    if (!response.ok) return null;
+    const json = (await response.json()) as { results?: UrlscanHit[] };
+    const ranked = (json.results ?? [])
+      .map((hit) => ({ hit, score: homepageScore(hit, domain) }))
+      .filter((row) => row.score >= 0)
+      .sort((a, b) => b.score - a.score);
+    return ranked[0]?.hit ?? json.results?.[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function urlscanDom(uuid: string, domain: string, siteUrl?: string | null) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const response = await fetch(`https://urlscan.io/dom/${uuid}/`, {
       signal: controller.signal,
@@ -379,91 +370,45 @@ async function urlscanDom(uuid: string, domain: string, siteUrl?: string | null)
   }
 }
 
-function wappaFromResult(scan: UrlscanResult) {
-  const apps = (scan.meta?.processors?.wappa?.data ?? [])
-    .map((item) => item.app)
-    .filter((item): item is string => Boolean(item));
-  return {
-    technologies: apps,
-    platform: apps.find((item) => /shopify|wordpress|wix|squarespace|webflow|next/i.test(item)) ?? null,
-    isEcommerce: apps.some((item) => /shopify|woocommerce|magento|bigcommerce|shop/i.test(item)) || null,
-    notes: scan.verdicts?.overall?.malicious ? ["urlscan marked this scan as potentially malicious."] : [],
-  };
-}
-
-async function urlscanSubmitAndWait(url: string) {
-  if (!isUrlscanConfigured()) return null;
-  const submit = await fetch("https://urlscan.io/api/v1/scan/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...urlscanHeaders(),
-    },
-    body: JSON.stringify({ url, visibility: "public" }),
-  });
-  if (!submit.ok) return null;
-  const json = (await submit.json()) as { uuid?: string };
-  if (!json.uuid) return null;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-    const result = await urlscanByUuid(json.uuid);
-    if (result?.page) return result;
-  }
-  return null;
-}
-
 export async function collectWebsiteEvidence(input: {
   url?: string | null;
   domain?: string | null;
   urlscanUuid?: string | null;
 }) {
-  const domain = input.domain?.replace(/^www\./, "").toLowerCase() ?? null;
-  const startUrl = input.url || (domain ? `https://${domain}` : null);
-  const notes: string[] = [];
+  try {
+    const domain = input.domain?.replace(/^www\./, "").toLowerCase() ?? null;
+    const startUrl = input.url || (domain ? `https://${domain}` : null);
+    const notes: string[] = [];
 
-  const [livePage, searchHit] = await Promise.all([
-    startUrl ? fetchHtml(startUrl) : Promise.resolve(null),
-    domain ? urlscanSearchHomepage(domain) : Promise.resolve(null),
-  ]);
+    const [livePage, searchHit] = await Promise.all([
+      startUrl ? fetchHtml(startUrl) : Promise.resolve(null),
+      domain ? urlscanSearchHomepage(domain) : Promise.resolve(null),
+    ]);
 
-  const liveParsed =
-    livePage?.html && domain ? parseHtml(livePage.html, livePage.url, domain, livePage.status) : null;
-  const usableLive = liveParsed?.fetched ? liveParsed : null;
-  if (liveParsed && !liveParsed.fetched) notes.push(...liveParsed.notes);
+    const liveParsed =
+      livePage?.html && domain ? parseHtml(livePage.html, livePage.url, domain, livePage.status) : null;
+    const usableLive = liveParsed?.fetched ? liveParsed : null;
+    if (liveParsed && !liveParsed.fetched) notes.push(...liveParsed.notes);
 
-  const uuid = input.urlscanUuid || searchHit?._id || searchHit?.task?.uuid || null;
-  const siteUrl = searchHit?.page?.url || startUrl;
-  const [domEvidence, fullResult] = uuid
-    ? await Promise.all([
-        domain ? urlscanDom(uuid, domain, siteUrl) : Promise.resolve(null),
-        urlscanByUuid(uuid),
-      ])
-    : [null, null];
+    const uuid = input.urlscanUuid || searchHit?._id || searchHit?.task?.uuid || null;
+    const siteUrl = searchHit?.page?.url || startUrl;
+    const domEvidence = uuid && domain ? await urlscanDom(uuid, domain, siteUrl) : null;
+    const scanMeta = searchHit ? fromUrlscanHit(searchHit) : null;
 
-  const scanMeta = searchHit
-    ? fromUrlscanHit(searchHit, fullResult ? wappaFromResult(fullResult) : undefined)
-    : fullResult
-      ? fromUrlscanHit(fullResult, wappaFromResult(fullResult))
-      : null;
-
-  let merged = mergeEvidence(usableLive ?? (domEvidence?.fetched ? domEvidence : null), scanMeta);
-  if (domEvidence?.fetched) {
-    merged = mergeEvidence(domEvidence, merged);
-    merged.source = usableLive ? "html+urlscan" : "urlscan";
-  }
-
-  if (!merged.fetched && startUrl) {
-    const submitted = await urlscanSubmitAndWait(startUrl);
-    if (submitted) {
-      const submittedUuid = submitted._id ?? submitted.task?.uuid;
-      const submittedDom = submittedUuid && domain ? await urlscanDom(submittedUuid, domain) : null;
-      merged = mergeEvidence(submittedDom, fromUrlscanHit(submitted));
+    let merged = mergeEvidence(usableLive ?? (domEvidence?.fetched ? domEvidence : null), scanMeta);
+    if (domEvidence?.fetched) {
+      merged = mergeEvidence(domEvidence, merged);
+      merged.source = usableLive ? "html+urlscan" : "urlscan";
     }
-  }
 
-  merged.notes = Array.from(new Set([...notes, ...merged.notes]));
-  if (!merged.fetched) {
-    merged.notes.push("No live page HTML or urlscan result was available.");
+    merged.notes = Array.from(new Set([...notes, ...merged.notes]));
+    if (!merged.fetched) {
+      merged.notes.push("No live page HTML or urlscan result was available.");
+    }
+    return merged;
+  } catch {
+    const fallback = emptyEvidence();
+    fallback.notes.push("Page capture failed before any HTML or urlscan snapshot could be stored.");
+    return fallback;
   }
-  return merged;
 }

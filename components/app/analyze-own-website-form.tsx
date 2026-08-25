@@ -15,14 +15,19 @@ export function AnalyzeOwnWebsiteForm({ compact = false }: { compact?: boolean }
     event.preventDefault();
     setPending(true);
     setError(null);
-    const result = await importWebsiteForAnalysis(url);
-    setPending(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await importWebsiteForAnalysis(url);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      router.push(`/analyze/${result.websiteId}`);
+      router.refresh();
+    } catch {
+      setError("Could not open that website. Try again.");
+    } finally {
+      setPending(false);
     }
-    router.push(`/analyze/${result.websiteId}`);
-    router.refresh();
   }
 
   return (

@@ -1,7 +1,7 @@
 import { complete } from "@/lib/ai/client";
 
 export async function analyzeWebsite(input: string) {
-  return complete(`Analyze this website using only provided evidence. Label each finding Detected, Possible, or Unable to determine.\n\n${input}`, "reasoning");
+  return complete(`Analyze this website using only provided evidence. Label each finding Detected, Possible, or Unable to determine. Return JSON only.\n\n${input}`, "default");
 }
 
 export async function analyzeOpportunity(input: string) {

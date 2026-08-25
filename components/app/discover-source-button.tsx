@@ -22,14 +22,19 @@ export function DiscoverSourceButton({
   async function onClick() {
     setLoading(true);
     setMessage(null);
-    const result = await action();
-    setLoading(false);
-    setMessage(
-      result.ok
-        ? `${successLabel ?? `Imported ${result.count ?? 0} records.`}${result.warning ? ` ${result.warning}` : ""}`
-        : result.error ?? "Request failed",
-    );
-    if (result.ok) router.refresh();
+    try {
+      const result = await action();
+      setMessage(
+        result.ok
+          ? `${successLabel ?? `Imported ${result.count ?? 0} records.`}${result.warning ? ` ${result.warning}` : ""}`
+          : result.error ?? "Request failed",
+      );
+      if (result.ok) router.refresh();
+    } catch {
+      setMessage("Request failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

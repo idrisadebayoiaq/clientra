@@ -103,12 +103,12 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     <AppPageShell
       title={`Analyze ${title}`}
       description="AI analysis workspace. Findings are labeled Detected, Possible, or Unable to determine."
-      actions={configured ? <AnalyzeWebsiteButton targetId={targetId} /> : undefined}
+      actions={<AnalyzeWebsiteButton targetId={targetId} />}
     >
       {!configured ? (
         <NotConfiguredState
           title="OpenRouter is not configured"
-          description="Set OPENROUTER_API_KEY on the server to run analysis. The workspace layout is ready."
+          description="Set OPENROUTER_API_KEY on Vercel Production to add AI commentary. Run analysis still captures the public page and urlscan evidence."
         />
       ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
