@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { generateOutreach } from "@/lib/ai";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { sendGmailMessage } from "@/lib/gmail/send";
+import { composeOutreachMessage, resolveSenderName } from "@/lib/outreach/compose";
+import { enrichOpportunityContact } from "@/lib/outreach/workspace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export async function generateOutreachDraft(formData: FormData) {
@@ -16,38 +17,34 @@ export async function generateOutreachDraft(formData: FormData) {
   const opportunityId = String(formData.get("opportunityId") ?? "");
   const channel = String(formData.get("channel") ?? "email");
   const extra = String(formData.get("context") ?? "").trim();
+  const requestedName = String(formData.get("senderName") ?? "").trim();
 
-  const { data: opportunity } = opportunityId
-    ? await supabase.from("opportunities").select("*").eq("id", opportunityId).maybeSingle()
-    : { data: null };
+  const [{ data: opportunity }, { data: profile }, { data: services }, { data: existingContact }] = await Promise.all([
+    opportunityId
+      ? supabase.from("opportunities").select("*").eq("id", opportunityId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
+    supabase.from("user_services").select("custom_label, service_key").eq("user_id", user.id),
+    opportunityId
+      ? supabase.from("contacts").select("*").eq("opportunity_id", opportunityId).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  const prompt = `Write a short personalized ${channel} message.
-Do not invent contact names, emails, metrics, or technical issues.
-If evidence is thin, keep the note general and honest.
+  const contact = opportunity
+    ? await enrichOpportunityContact(supabase, user.id, opportunity, existingContact)
+    : null;
+  const senderName = requestedName || resolveSenderName(profile, user);
+  const serviceLabels = (services ?? []).map((row) => row.custom_label || row.service_key.replace(/_/g, " "));
 
-Opportunity:
-${JSON.stringify(
-  {
-    title: opportunity?.title,
-    company: opportunity?.company_name,
-    domain: opportunity?.domain,
-    need: opportunity?.estimated_need,
-    industry: opportunity?.industry,
-    location: opportunity?.location,
-    service: opportunity?.matching_service,
-    extra: extra || null,
-  },
-  null,
-  2,
-)}`;
-
-  const body = await generateOutreach(prompt);
-  const subject =
-    opportunity?.company_name
-      ? `Quick idea for ${opportunity.company_name}`
-      : opportunity?.title
-        ? `Regarding ${opportunity.title}`
-        : "Introduction";
+  const { subject, body } = await composeOutreachMessage({
+    channel,
+    senderName,
+    senderEmail: profile?.email ?? user.email,
+    services: serviceLabels,
+    opportunity,
+    contact,
+    extra,
+  });
 
   const { data: draft } = await supabase
     .from("outreach_messages")
@@ -69,6 +66,7 @@ ${JSON.stringify(
     subject: draft?.subject ?? subject,
     body: draft?.body ?? body,
     draftId: draft?.id ?? null,
+    to: contact?.email ?? null,
   };
 }
 

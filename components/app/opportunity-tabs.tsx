@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/feedback";
 import { Tabs } from "@/components/ui/score-and-tabs";
 import { OpportunityCard } from "@/components/app/opportunity-card";
+import type { ContactSummary } from "@/components/app/contact-details";
 import type { Tables } from "@/types/database";
 
 const TABS = [
@@ -16,11 +17,15 @@ const TABS = [
   { id: "recommended", label: "Recommended" },
 ];
 
+type OpportunityWithContacts = Tables<"opportunities"> & {
+  contacts?: ContactSummary[] | ContactSummary | null;
+};
+
 export default function OpportunityTabs({
   opportunities,
   emptyDescription = "No records in this view yet. Use Discover to import live websites, companies, or jobs.",
 }: {
-  opportunities: Tables<"opportunities">[];
+  opportunities: OpportunityWithContacts[];
   emptyDescription?: string;
 }) {
   const [tab, setTab] = useState("all");

@@ -1,6 +1,7 @@
 import { AppPageShell } from "@/components/app/page-shell";
+import { ContactDetails } from "@/components/app/contact-details";
 import { EmptyState } from "@/components/ui/feedback";
-import { Card } from "@/components/ui/primitives";
+import { ButtonLink, Card } from "@/components/ui/primitives";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export default async function ContactsPage() {
@@ -13,10 +14,16 @@ export default async function ContactsPage() {
         data.map((contact) => (
           <Card key={contact.id} className="p-4">
             <p className="font-medium">{contact.full_name ?? contact.business_name ?? "Unnamed"}</p>
-            <p className="text-sm text-ink-muted">
-              {contact.email ?? "No public email"} · {contact.verification_status}
-              {contact.source_reference ? ` · ${contact.source_reference}` : ""}
-            </p>
+            <div className="mt-2">
+              <ContactDetails contact={contact} />
+            </div>
+            {contact.opportunity_id ? (
+              <div className="mt-3">
+                <ButtonLink href={`/outreach?opportunity=${contact.opportunity_id}`} size="sm">
+                  Contact
+                </ButtonLink>
+              </div>
+            ) : null}
           </Card>
         ))
       ) : (

@@ -1,10 +1,16 @@
 import { Badge, Button, ButtonLink, Card } from "@/components/ui/primitives";
 import { ScoreRing } from "@/components/ui/score-and-tabs";
+import { ContactDetails, firstContact, type ContactSummary } from "@/components/app/contact-details";
 import { formatRelativeTime } from "@/lib/utils";
 import type { Tables } from "@/types/database";
 import { saveOpportunityForm, ignoreOpportunityForm } from "@/app/(app)/discover/actions";
 
-export function OpportunityCard({ opportunity }: { opportunity: Tables<"opportunities"> }) {
+export function OpportunityCard({
+  opportunity,
+}: {
+  opportunity: Tables<"opportunities"> & { contacts?: ContactSummary[] | ContactSummary | null };
+}) {
+  const contact = firstContact(opportunity.contacts);
   return (
     <Card className="p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -13,9 +19,10 @@ export function OpportunityCard({ opportunity }: { opportunity: Tables<"opportun
             <h3 className="text-lg font-semibold">{opportunity.title}</h3>
             {opportunity.is_demo ? <Badge tone="gold">DEMO</Badge> : null}
             <Badge>{opportunity.freshness_status}</Badge>
+            <Badge>{opportunity.source.replace(/_/g, " ")}</Badge>
           </div>
           <p className="mt-1 text-sm text-ink-muted">
-            {opportunity.company_name ?? opportunity.person_name ?? "Unknown"} · {opportunity.source}
+            {opportunity.company_name ?? opportunity.person_name ?? "Unknown"}
             {opportunity.source_url ? ` · ${opportunity.source_url}` : ""}
           </p>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -37,9 +44,11 @@ export function OpportunityCard({ opportunity }: { opportunity: Tables<"opportun
               <dt className="text-ink-subtle">Matching service</dt>
               <dd>{opportunity.matching_service ?? "—"}</dd>
             </div>
-            <div>
+            <div className="sm:col-span-2">
               <dt className="text-ink-subtle">Contact</dt>
-              <dd>{opportunity.contact_available ? "Public contact available" : "No public contact stored"}</dd>
+              <dd className="mt-1">
+                <ContactDetails contact={contact} />
+              </dd>
             </div>
             <div>
               <dt className="text-ink-subtle">Status</dt>

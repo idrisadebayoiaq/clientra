@@ -3,26 +3,38 @@ import { OutreachComposer } from "@/components/app/outreach-composer";
 import { NotConfiguredState } from "@/components/ui/feedback";
 import { Card } from "@/components/ui/primitives";
 import { isOpenRouterConfigured } from "@/lib/env";
+import { prepareOutreachWorkspace } from "@/lib/outreach/workspace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+
+export const maxDuration = 60;
 
 export default async function OutreachPage({
   searchParams,
 }: {
-  searchParams: Promise<{ opportunity?: string }>;
+  searchParams: Promise<{ opportunity?: string; website?: string }>;
 }) {
-  const { opportunity: opportunityId } = await searchParams;
+  const { opportunity: opportunityId, website: websiteId } = await searchParams;
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return null;
 
   const { data: opportunity } = opportunityId
     ? await supabase.from("opportunities").select("*").eq("id", opportunityId).maybeSingle()
-    : { data: null };
+    : websiteId
+      ? await supabase
+          .from("opportunities")
+          .select("*")
+          .eq("website_id", websiteId)
+          .order("discovered_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
   const { data: gmail } = await supabase
     .from("email_accounts")
     .select("status")
     .eq("provider", "gmail")
     .maybeSingle();
 
+  const workspace = opportunity ? await prepareOutreachWorkspace(supabase, user, opportunity) : null;
   const configured = isOpenRouterConfigured();
   const context = [
     opportunity?.title,
@@ -46,12 +58,38 @@ export default async function OutreachPage({
         {opportunity ? (
           <p className="mb-4 text-sm text-ink-muted">
             Drafting for {opportunity.company_name ?? opportunity.title}
-            {opportunity.source_url ? ` · ${opportunity.source_url}` : ""}.
+            {opportunity.source_url ? ` · ${opportunity.source_url}` : ""}
+            {workspace?.senderName ? ` · Signing as ${workspace.senderName}` : ""}.
           </p>
         ) : null}
         <OutreachComposer
+          key={opportunity?.id ?? "blank"}
           opportunityId={opportunity?.id}
           defaultContext={context}
+          defaultTo={workspace?.contact.email ?? undefined}
+          defaultSubject={workspace?.subject}
+          defaultBody={workspace?.body}
+          defaultChannel={workspace?.contact.email ? "email" : workspace?.contact.linkedinUrl ? "linkedin" : "email"}
+          senderName={workspace?.senderName}
+          contact={
+            workspace
+              ? {
+                  email: workspace.contact.email,
+                  phone: workspace.contact.phone,
+                  website: workspace.contact.website,
+                  full_name: workspace.contact.fullName,
+                  business_name: workspace.contact.businessName,
+                  notes: [
+                    workspace.contact.linkedinUrl ? `linkedin: ${workspace.contact.linkedinUrl}` : null,
+                    workspace.contact.facebookUrl ? `facebook: ${workspace.contact.facebookUrl}` : null,
+                    workspace.contact.twitterUrl ? `twitter: ${workspace.contact.twitterUrl}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join("\n"),
+                  verification_status: "unverified",
+                }
+              : null
+          }
           gmailReady={gmail?.status === "connected"}
         />
       </Card>

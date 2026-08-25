@@ -1,18 +1,15 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { Database, Json } from "@/types/database";
 import type { NormalizedOpportunity } from "@/lib/opportunities/types";
+import { shouldPersistWebsite } from "@/lib/opportunities/domains";
+import {
+  extractContactFromRaw,
+  hasPublicContact,
+  mergeContacts,
+  socialNotes,
+  type ExtractedContact,
+} from "@/lib/opportunities/public-contact";
 import { freshnessFromDate, heuristicScore, scoreExplanation } from "@/lib/opportunities/score";
-
-function publicPhone(raw: unknown) {
-  const org = raw as { phone?: unknown; primary_phone?: unknown };
-  if (typeof org.phone === "string" && org.phone.trim()) return org.phone.trim();
-  if (typeof org.primary_phone === "string" && org.primary_phone.trim()) return org.primary_phone.trim();
-  if (org.primary_phone && typeof org.primary_phone === "object") {
-    const number = (org.primary_phone as { number?: unknown }).number;
-    if (typeof number === "string" && number.trim()) return number.trim();
-  }
-  return null;
-}
 
 function slimRaw(raw: unknown): Json {
   if (raw == null) return null;
@@ -27,6 +24,55 @@ function slimRaw(raw: unknown): Json {
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 type OpportunitySource = Database["public"]["Enums"]["opportunity_source_type"];
+
+async function upsertContact(
+  supabase: ServerClient,
+  userId: string,
+  opportunityId: string,
+  websiteId: string | null,
+  source: OpportunitySource,
+  item: NormalizedOpportunity,
+  contact: ExtractedContact,
+) {
+  if (!contact.email && !contact.phone && !contact.linkedinUrl) return;
+
+  const row = {
+    user_id: userId,
+    opportunity_id: opportunityId,
+    website_id: websiteId,
+    full_name: contact.fullName ?? item.personName ?? null,
+    business_name: contact.businessName ?? item.companyName ?? null,
+    email: contact.email,
+    phone: contact.phone,
+    website: contact.website ?? item.sourceUrl ?? null,
+    notes: socialNotes(contact) || null,
+    source_reference: source,
+    verification_status: "unverified" as const,
+  };
+
+  const { data: existing } = await supabase
+    .from("contacts")
+    .select("id, email, phone, notes, website")
+    .eq("opportunity_id", opportunityId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("contacts")
+      .update({
+        email: existing.email || row.email,
+        phone: existing.phone || row.phone,
+        website: existing.website || row.website,
+        notes: existing.notes || row.notes,
+        full_name: row.full_name,
+        business_name: row.business_name,
+      })
+      .eq("id", existing.id);
+    return;
+  }
+
+  await supabase.from("contacts").insert(row);
+}
 
 export async function persistOpportunities(
   supabase: ServerClient,
@@ -46,14 +92,14 @@ export async function persistOpportunities(
     }
 
     let websiteId: string | null = null;
-    if (item.domain && (source === "website_discovery" || source === "apollo")) {
+    if (shouldPersistWebsite(item.domain)) {
       const { data: website, error: websiteError } = await supabase
         .from("websites")
         .upsert(
           {
             user_id: userId,
-            domain: item.domain,
-            normalized_url: item.normalizedUrl ?? item.domain,
+            domain: item.domain!,
+            normalized_url: item.normalizedUrl ?? item.domain!,
             url: item.sourceUrl ?? `https://${item.domain}`,
             title: item.title,
             business_name: item.companyName ?? item.domain,
@@ -72,14 +118,21 @@ export async function persistOpportunities(
       websiteId = website?.id ?? null;
     }
 
+    const extracted = mergeContacts(
+      extractContactFromRaw(item.raw, item.domain),
+      {
+        fullName: item.personName ?? null,
+        businessName: item.companyName ?? null,
+        website: item.sourceUrl ?? null,
+      },
+    );
     const score = heuristicScore(item, options?.keywords);
-    const phone = publicPhone(item.raw);
     const row = {
       user_id: userId,
       website_id: websiteId,
       title: item.title.slice(0, 300),
       company_name: item.companyName ?? null,
-      person_name: item.personName ?? null,
+      person_name: item.personName ?? extracted.fullName ?? null,
       source,
       source_id: item.sourceId ?? null,
       source_url: item.sourceUrl ?? null,
@@ -92,7 +145,7 @@ export async function persistOpportunities(
       matching_service: options?.matchingService ?? null,
       opportunity_score: score,
       score_explanation: scoreExplanation(item, score) as Json,
-      contact_available: Boolean(phone),
+      contact_available: hasPublicContact(extracted),
       discovered_at: item.publishedAt ?? new Date().toISOString(),
       published_at: item.publishedAt ?? null,
       last_verified_at: new Date().toISOString(),
@@ -127,25 +180,13 @@ export async function persistOpportunities(
     }
 
     stored += 1;
+    await upsertContact(supabase, userId, saved.id, websiteId, source, item, extracted);
 
-    if (phone) {
-      const { data: existingContact } = await supabase
-        .from("contacts")
-        .select("id")
-        .eq("opportunity_id", saved.id)
-        .maybeSingle();
-      if (!existingContact) {
-        await supabase.from("contacts").insert({
-          user_id: userId,
-          opportunity_id: saved.id,
-          website_id: websiteId,
-          business_name: item.companyName ?? null,
-          phone,
-          website: item.sourceUrl ?? null,
-          source_reference: source,
-          verification_status: "unverified",
-        });
-      }
+    if (websiteId && extracted.email) {
+      await supabase.from("websites").update({ has_email: true }).eq("id", websiteId);
+    }
+    if (websiteId && (extracted.linkedinUrl || extracted.facebookUrl || extracted.twitterUrl)) {
+      await supabase.from("websites").update({ has_social: true }).eq("id", websiteId);
     }
   }
 

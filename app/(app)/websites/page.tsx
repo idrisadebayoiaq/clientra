@@ -1,5 +1,6 @@
 import { AppPageShell, SourceNotReady } from "@/components/app/page-shell";
 import { AnalyzeOwnWebsiteForm } from "@/components/app/analyze-own-website-form";
+import { ContactDetails, firstContact } from "@/components/app/contact-details";
 import { DiscoverWebsitesButton } from "@/components/app/discover-websites-button";
 import { SaveLeadButton } from "@/components/app/save-lead-button";
 import { Badge, ButtonLink, Card } from "@/components/ui/primitives";
@@ -15,7 +16,9 @@ export default async function WebsitesPage() {
   await ensureUserDiscovery();
   const { data } = await supabase
     .from("websites")
-    .select("*")
+    .select(
+      "*, opportunities(id, source, contact_available), contacts(email, phone, website, full_name, business_name, notes, verification_status)",
+    )
     .order("discovered_at", { ascending: false })
     .limit(50);
   const configured = isUrlscanConfigured();
@@ -23,35 +26,53 @@ export default async function WebsitesPage() {
   return (
     <AppPageShell
       title="Website Discovery"
-      description="Newly detected websites from configured sources. Filters apply to stored records only."
+      description="Newly detected websites from urlscan, Apollo, and any other source that includes a public domain. Filters apply to stored records only."
       actions={configured ? <DiscoverWebsitesButton /> : undefined}
     >
       <AnalyzeOwnWebsiteForm />
       {data?.length ? (
         <div className="grid gap-4">
-          {data.map((site) => (
-            <Card key={site.id} className="p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold">{site.business_name ?? site.domain}</h2>
-                    {site.is_demo ? <Badge tone="gold">DEMO</Badge> : null}
+          {data.map((site) => {
+            const opportunity = Array.isArray(site.opportunities) ? site.opportunities[0] : site.opportunities;
+            const contact = firstContact(site.contacts);
+            const source = opportunity?.source?.replace(/_/g, " ") ?? "website";
+            return (
+              <Card key={site.id} className="p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold">{site.business_name ?? site.domain}</h2>
+                      {site.is_demo ? <Badge tone="gold">DEMO</Badge> : null}
+                      <Badge>{source}</Badge>
+                    </div>
+                    <p className="text-sm text-ink-muted">{site.domain}</p>
+                    <p className="mt-2 text-sm">Detected: {formatRelativeTime(site.discovered_at)}</p>
+                    <p className="mt-1 text-sm">Industry: {site.industry ?? "Unknown"}</p>
+                    <p className="mt-1 text-sm">Technology: {site.technology?.join(", ") || "Unable to determine"}</p>
+                    <div className="mt-3">
+                      <ContactDetails
+                        contact={contact}
+                        fallbackLabel={site.has_email ? "Public email flagged" : "No public contact stored yet. Open Contact to scan the site."}
+                      />
+                    </div>
                   </div>
-                  <p className="text-sm text-ink-muted">{site.domain}</p>
-                  <p className="mt-2 text-sm">Detected: {formatRelativeTime(site.discovered_at)}</p>
-                  <p className="mt-1 text-sm">Industry: {site.industry ?? "Unknown"}</p>
-                  <p className="mt-1 text-sm">Technology: {site.technology?.join(", ") || "Unable to determine"}</p>
-                  <p className="mt-1 text-sm">Contact: {site.has_email ? "Public email flagged" : "No public email stored"}</p>
+                  <ScoreRing score={null} />
                 </div>
-                <ScoreRing score={null} />
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <ButtonLink href={`/analyze/${site.id}`} size="sm">Analyze Website</ButtonLink>
-                <ButtonLink href={site.url} size="sm" variant="outline">View Website</ButtonLink>
-                <SaveLeadButton websiteId={site.id} />
-              </div>
-            </Card>
-          ))}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <ButtonLink href={`/analyze/${site.id}`} size="sm">Analyze Website</ButtonLink>
+                  <ButtonLink href={site.url} size="sm" variant="outline">View Website</ButtonLink>
+                  <ButtonLink
+                    href={opportunity?.id ? `/outreach?opportunity=${opportunity.id}` : `/outreach?website=${site.id}`}
+                    size="sm"
+                    variant="outline"
+                  >
+                    Contact
+                  </ButtonLink>
+                  <SaveLeadButton websiteId={site.id} />
+                </div>
+              </Card>
+            );
+          })}
         </div>
       ) : configured ? (
         <SourceNotReady

@@ -99,13 +99,21 @@ export async function discoverConfiguredSources() {
     apolloAdapter.configured() ? runDiscovery("apollo") : null,
     problemPostsAdapter.configured() ? runDiscovery("problem_post") : null,
   ]);
+  return recordDiscovery(supabase, user.id, results);
+}
+
+async function recordDiscovery(
+  supabase: Awaited<ReturnType<typeof getAuthenticatedUser>>["supabase"],
+  userId: string,
+  results: Array<{ ok: boolean; error?: string; count: number } | null>,
+) {
   const usable = results.filter((result): result is NonNullable<typeof result> => Boolean(result));
   const count = usable.reduce((sum, result) => sum + (result.ok ? result.count : 0), 0);
   const error = usable.find((result) => !result.ok)?.error ?? null;
 
   await supabase.from("user_preferences").upsert(
     {
-      user_id: user.id,
+      user_id: userId,
       last_discovery_at: new Date().toISOString(),
       last_discovery_count: count,
       last_discovery_error: count ? null : error,
@@ -126,8 +134,8 @@ export async function ensureUserDiscovery() {
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return { ok: false as const, error: "Sign in required", count: 0 };
 
-  const [{ count }, prefs] = await Promise.all([
-    supabase.from("opportunities").select("id", { count: "exact", head: true }),
+  const [{ data: sourceRows }, prefs] = await Promise.all([
+    supabase.from("opportunities").select("source"),
     supabase
       .from("user_preferences")
       .select("last_discovery_at")
@@ -135,16 +143,28 @@ export async function ensureUserDiscovery() {
       .maybeSingle(),
   ]);
 
-  if ((count ?? 0) > 0) {
-    return { ok: true as const, count: count ?? 0 };
+  const counts = new Map<string, number>();
+  for (const row of sourceRows ?? []) {
+    counts.set(row.source, (counts.get(row.source) ?? 0) + 1);
+  }
+  const total = sourceRows?.length ?? 0;
+  const missing: OpportunitySource[] = [];
+  if (websiteDiscoveryAdapter.configured() && !counts.get("website_discovery")) missing.push("website_discovery");
+  if (adzunaAdapter.configured() && !counts.get("job")) missing.push("job");
+  if (apolloAdapter.configured() && !counts.get("apollo")) missing.push("apollo");
+  if (problemPostsAdapter.configured() && !counts.get("problem_post")) missing.push("problem_post");
+
+  if (!missing.length) {
+    return { ok: true as const, count: total };
   }
 
   const last = prefs.data?.last_discovery_at;
-  if (last && Date.now() - new Date(last).getTime() < 10 * 60 * 1000) {
-    return { ok: true as const, count: 0 };
+  if (total > 0 && last && Date.now() - new Date(last).getTime() < 10 * 60 * 1000) {
+    return { ok: true as const, count: total };
   }
 
-  return discoverConfiguredSources();
+  const results = await Promise.all(missing.map((kind) => runDiscovery(kind)));
+  return recordDiscovery(supabase, user.id, results);
 }
 
 export async function saveOpportunity(opportunityId: string) {

@@ -12,7 +12,7 @@ export default async function ProblemsPage() {
   const configured = isProblemDiscoveryConfigured();
   const { data } = await supabase
     .from("opportunities")
-    .select("*")
+    .select("*, contacts(email, phone, website, full_name, business_name, notes, verification_status)")
     .eq("source", "problem_post")
     .order("discovered_at", { ascending: false })
     .limit(50);

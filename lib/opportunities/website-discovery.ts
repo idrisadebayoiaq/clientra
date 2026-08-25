@@ -1,4 +1,5 @@
 import { getServerEnv, isUrlscanConfigured } from "@/lib/env";
+import { isJunkDiscoveryDomain } from "@/lib/opportunities/domains";
 import { contentHash } from "@/lib/opportunities/hash";
 import { extractDomain, normalizeUrl } from "@/lib/utils";
 import {
@@ -44,8 +45,17 @@ export const websiteDiscoveryAdapter: OpportunitySourceAdapter = {
     const env = getServerEnv();
     const hours = options?.freshnessHours ?? 48;
     const days = hours <= 24 ? "24h" : hours <= 48 ? "2d" : "3d";
+    const countryCodes = (options?.countries ?? [])
+      .map((country) => country.trim().toUpperCase())
+      .filter((country) => /^[A-Z]{2}$/.test(country))
+      .slice(0, 3);
+    const countryQuery =
+      !options?.worldwide && countryCodes.length
+        ? ` AND (${countryCodes.map((code) => `page.country:${code}`).join(" OR ")})`
+        : "";
+    const query = `date:>now-${days} AND page.status:200${countryQuery}`;
     const response = await fetch(
-      `https://urlscan.io/api/v1/search/?q=${encodeURIComponent(`date:>now-${days} AND page.status:200`)}&size=25`,
+      `https://urlscan.io/api/v1/search/?q=${encodeURIComponent(query)}&size=25`,
       { headers: { "API-Key": env.urlscanApiKey, "User-Agent": "clientra/0.1" } },
     );
     if (!response.ok) {
@@ -54,7 +64,7 @@ export const websiteDiscoveryAdapter: OpportunitySourceAdapter = {
     const json = (await response.json()) as { results?: UrlscanHit[] };
     const items = (json.results ?? [])
       .map(normalize)
-      .filter((item) => Boolean(item.domain));
+      .filter((item) => Boolean(item.domain) && !isJunkDiscoveryDomain(item.domain));
     return websiteDiscoveryAdapter.deduplicate(items);
   },
   fetch: async (id) => {

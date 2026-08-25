@@ -24,7 +24,7 @@ export default async function DiscoverPage() {
 
   const { data: opportunities } = await supabase
     .from("opportunities")
-    .select("*")
+    .select("*, contacts(email, phone, website, full_name, business_name, notes, verification_status)")
     .order("discovered_at", { ascending: false })
     .limit(50);
 

@@ -3,21 +3,37 @@
 import { useState } from "react";
 import { Button, Label, Select, Textarea, Input } from "@/components/ui/primitives";
 import { generateOutreachDraft, sendOutreachEmail } from "@/app/(app)/outreach/actions";
+import { ContactDetails, type ContactSummary } from "@/components/app/contact-details";
+import { parseSocialNotes } from "@/lib/opportunities/public-contact";
 
 export function OutreachComposer({
   opportunityId,
   defaultContext,
+  defaultTo,
+  defaultSubject,
+  defaultBody,
+  defaultChannel,
+  senderName,
+  contact,
   gmailReady,
 }: {
   opportunityId?: string;
   defaultContext?: string;
+  defaultTo?: string;
+  defaultSubject?: string;
+  defaultBody?: string;
+  defaultChannel?: string;
+  senderName?: string;
+  contact?: ContactSummary | null;
   gmailReady: boolean;
 }) {
-  const [channel, setChannel] = useState("email");
+  const social = parseSocialNotes(contact?.notes);
+  const [channel, setChannel] = useState(defaultChannel ?? (defaultTo ? "email" : social.linkedinUrl ? "linkedin" : "email"));
   const [context, setContext] = useState(defaultContext ?? "");
-  const [to, setTo] = useState("");
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [to, setTo] = useState(defaultTo ?? "");
+  const [signAs, setSignAs] = useState(senderName ?? "");
+  const [subject, setSubject] = useState(defaultSubject ?? "");
+  const [body, setBody] = useState(defaultBody ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -27,6 +43,7 @@ export function OutreachComposer({
     const form = new FormData();
     form.set("channel", channel);
     form.set("context", context);
+    form.set("senderName", signAs);
     if (opportunityId) form.set("opportunityId", opportunityId);
     const result = await generateOutreachDraft(form);
     setLoading(false);
@@ -36,6 +53,7 @@ export function OutreachComposer({
     }
     setSubject(result.subject);
     setBody(result.body);
+    if (result.to) setTo(result.to);
   }
 
   async function sendEmail() {
@@ -56,8 +74,27 @@ export function OutreachComposer({
     setMessage("Message copied.");
   }
 
+  const profileUrl =
+    channel === "linkedin"
+      ? social.linkedinUrl
+      : channel === "facebook"
+        ? social.facebookUrl
+        : channel === "x"
+          ? social.twitterUrl
+          : null;
+
   return (
     <div className="space-y-4">
+      {contact ? (
+        <div className="rounded-xl border border-border bg-paper-muted/60 p-4">
+          <h3 className="text-sm font-semibold">Public contact details</h3>
+          <div className="mt-2">
+            <ContactDetails contact={contact} />
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-ink-muted">No public contact is stored for this record yet. Clientra will not invent an email address.</p>
+      )}
       <div>
         <Label htmlFor="channel">Channel</Label>
         <Select id="channel" value={channel} onChange={(event) => setChannel(event.target.value)}>
@@ -67,6 +104,10 @@ export function OutreachComposer({
           <option value="facebook">Facebook</option>
           <option value="x">X</option>
         </Select>
+      </div>
+      <div>
+        <Label htmlFor="signAs">Sign as</Label>
+        <Input id="signAs" value={signAs} onChange={(event) => setSignAs(event.target.value)} />
       </div>
       <div>
         <Label htmlFor="context">Context</Label>
@@ -85,7 +126,7 @@ export function OutreachComposer({
             type="email"
             value={to}
             onChange={(event) => setTo(event.target.value)}
-            placeholder="Only use an address you already have permission to contact."
+            placeholder={contact?.email ? contact.email : "No public email stored. Paste an address you are allowed to contact."}
           />
         </div>
       ) : null}
@@ -107,6 +148,10 @@ export function OutreachComposer({
         {channel === "email" ? (
           <Button type="button" variant="secondary" onClick={sendEmail} disabled={loading || !gmailReady || !to || !body}>
             Send with Gmail
+          </Button>
+        ) : profileUrl ? (
+          <Button type="button" variant="ghost" onClick={() => window.open(profileUrl, "_blank", "noopener,noreferrer")}>
+            Open Profile
           </Button>
         ) : (
           <Button type="button" variant="ghost" disabled>

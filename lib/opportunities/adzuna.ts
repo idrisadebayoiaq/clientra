@@ -1,4 +1,5 @@
 import { getServerEnv, isAdzunaConfigured } from "@/lib/env";
+import { shouldPersistWebsite } from "@/lib/opportunities/domains";
 import { contentHash } from "@/lib/opportunities/hash";
 import {
   SourceNotConfiguredError,
@@ -6,6 +7,7 @@ import {
   type NormalizedOpportunity,
   type OpportunitySourceAdapter,
 } from "@/lib/opportunities/types";
+import { extractDomain, normalizeUrl } from "@/lib/utils";
 
 const ADZUNA_COUNTRIES = new Set([
   "at",
@@ -49,15 +51,25 @@ function sanitizeWhat(value: string) {
   return value.replace(/[^\w\s+-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
+function firstCompanySite(text?: string) {
+  const match = text?.match(/https?:\/\/[^\s<"']+/i);
+  if (!match?.[0]) return undefined;
+  const domain = extractDomain(match[0]);
+  return shouldPersistWebsite(domain) ? { domain, url: match[0] } : undefined;
+}
+
 function normalize(raw: unknown): NormalizedOpportunity {
   const job = raw as AdzunaJob;
   const description = job.description ? stripHtml(job.description).slice(0, 400) : undefined;
   const sourceId = String(job.id ?? "");
+  const site = firstCompanySite(job.description);
   return {
     title: job.title || "Job opportunity",
     companyName: job.company?.display_name,
     sourceId,
-    sourceUrl: job.redirect_url,
+    sourceUrl: site?.url ?? job.redirect_url,
+    normalizedUrl: site?.url ? normalizeUrl(site.url) : undefined,
+    domain: site?.domain,
     contentHash: contentHash(`adzuna:${sourceId}`),
     industry: job.category?.label,
     location: job.location?.display_name,

@@ -1,9 +1,11 @@
+import { shouldPersistWebsite } from "@/lib/opportunities/domains";
 import { contentHash } from "@/lib/opportunities/hash";
 import {
   type DiscoverOptions,
   type NormalizedOpportunity,
   type OpportunitySourceAdapter,
 } from "@/lib/opportunities/types";
+import { extractDomain, normalizeUrl } from "@/lib/utils";
 
 type HnHit = {
   objectID?: string;
@@ -19,13 +21,17 @@ type HnHit = {
 function normalize(raw: unknown): NormalizedOpportunity {
   const hit = raw as HnHit;
   const sourceId = String(hit.objectID ?? "");
-  const sourceUrl = sourceId ? `https://news.ycombinator.com/item?id=${sourceId}` : hit.url;
+  const discussionUrl = sourceId ? `https://news.ycombinator.com/item?id=${sourceId}` : undefined;
+  const externalUrl = hit.url && !hit.url.includes("news.ycombinator.com") ? hit.url : undefined;
+  const domain = externalUrl && shouldPersistWebsite(extractDomain(externalUrl)) ? extractDomain(externalUrl) : undefined;
   const body = hit.story_text || hit.comment_text || hit.title || "";
   return {
     title: hit.title || "Public request",
     personName: hit.author,
     sourceId,
-    sourceUrl: hit.url || sourceUrl,
+    sourceUrl: externalUrl || discussionUrl,
+    normalizedUrl: externalUrl ? normalizeUrl(externalUrl) : undefined,
+    domain,
     contentHash: contentHash(`hn:${sourceId}`),
     estimatedNeed: body.slice(0, 400) || undefined,
     publishedAt: hit.created_at,
@@ -36,6 +42,8 @@ function normalize(raw: unknown): NormalizedOpportunity {
       author: hit.author,
       created_at: hit.created_at,
       points: hit.points,
+      story_text: hit.story_text,
+      comment_text: hit.comment_text,
     },
   };
 }
@@ -70,6 +78,8 @@ export const problemPostsAdapter: OpportunitySourceAdapter = {
       ...keywords.map((keyword) => `${keyword} (looking OR need OR hire OR freelance)`),
       "looking for freelancer",
       "Ask HN",
+      "recommend a developer",
+      "need a website",
     ];
 
     const batches = await Promise.allSettled(queries.map((query) => searchHn(query, freshnessHours)));

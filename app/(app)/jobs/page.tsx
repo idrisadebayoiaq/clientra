@@ -10,14 +10,12 @@ export default async function JobsPage() {
   if (!user) return null;
   await ensureUserDiscovery();
   const configured = isAdzunaConfigured();
-  const { data } = configured
-    ? await supabase
-        .from("opportunities")
-        .select("*")
-        .eq("source", "job")
-        .order("discovered_at", { ascending: false })
-        .limit(50)
-    : { data: [] };
+  const { data } = await supabase
+    .from("opportunities")
+    .select("*, contacts(email, phone, website, full_name, business_name, notes, verification_status)")
+    .eq("source", "job")
+    .order("discovered_at", { ascending: false })
+    .limit(50);
 
   return (
     <AppPageShell
