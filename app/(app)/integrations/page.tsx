@@ -1,6 +1,16 @@
 import { AppPageShell } from "@/components/app/page-shell";
-import { Badge, ButtonLink, Card } from "@/components/ui/primitives";
-import { isAdzunaConfigured, isApolloConfigured, isGmailOAuthConfigured, isUrlscanConfigured } from "@/lib/env";
+import {
+  Badge,
+  ButtonLink,
+  Card,
+} from "@/components/ui/primitives";
+import {
+  isAdzunaConfigured,
+  isApolloConfigured,
+  isGmailOAuthConfigured,
+  isOmkarConfigured,
+  isUrlscanConfigured,
+} from "@/lib/env";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 const SOCIAL = [
@@ -82,14 +92,24 @@ export default async function IntegrationsPage({
       <div className="grid gap-3 md:grid-cols-3">
         {[
           {
+            name: "Public site crawl",
+            ready: true,
+            body: "Built into Analyze and Scan public contacts. Reads emails, phones, and social links from the company homepage and contact/about pages. No API key.",
+          },
+          {
+            name: "Omkar contact scraper",
+            ready: isOmkarConfigured(),
+            body: "Optional deeper crawl. Add OMKAR_API_KEY on Vercel after signing up at omkar.cloud, or point OMKAR_CONTACT_API_URL at a self-hosted Omkar instance.",
+          },
+          {
             name: "urlscan",
             ready: isUrlscanConfigured(),
             body: "Imports newly detected public websites into Website Opportunities.",
           },
           {
-            name: "Hacker News",
+            name: "Hacker News (Algolia)",
             ready: true,
-            body: "Imports recent public Ask HN and hiring/help requests into Problem Opportunities. No extra API key is required.",
+            body: "Already live on Problem Opportunities. No API key. Click Discover recent posts.",
           },
           {
             name: "Apollo",
@@ -101,11 +121,18 @@ export default async function IntegrationsPage({
             ready: isAdzunaConfigured(),
             body: "Imports recent job ads as hiring opportunities.",
           },
+          {
+            name: "SmartScan",
+            ready: false,
+            body: "Manual research tool only (no product API). Use smartscan.tools in your browser, then paste results with Add contact.",
+          },
         ].map((item) => (
           <Card key={item.name} className="p-5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-semibold">{item.name}</h2>
-              <Badge tone={item.ready ? "success" : "warning"}>{item.ready ? "Configured" : "Not configured"}</Badge>
+              <Badge tone={item.ready ? "success" : "warning"}>
+                {item.name === "SmartScan" ? "Manual" : item.ready ? "Configured" : "Not configured"}
+              </Badge>
             </div>
             <p className="mt-2 text-sm text-ink-muted">{item.body}</p>
           </Card>

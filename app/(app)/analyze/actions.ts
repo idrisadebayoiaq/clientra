@@ -9,7 +9,7 @@ import { getModel } from "@/lib/ai/client";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { shouldPersistWebsite } from "@/lib/opportunities/domains";
 import {
-  discoverPublicWebsiteContact,
+  enrichWebsiteContact,
   hasPublicContact,
   mergeContacts,
   socialNotes,
@@ -242,7 +242,7 @@ ${JSON.stringify(evidence)}`;
       if (!contact.email) {
         const siteUrl = page.finalUrl ?? url;
         if (siteUrl) {
-          contact = mergeContacts(contact, await discoverPublicWebsiteContact(siteUrl, domain));
+          contact = mergeContacts(contact, await enrichWebsiteContact(siteUrl, domain));
         }
       }
       if (hasPublicContact(contact) || contact.linkedinUrl) {

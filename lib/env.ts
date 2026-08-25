@@ -64,6 +64,10 @@ export function getServerEnv() {
     apolloApiKey: normalize(process.env.APOLLO_API_KEY),
     adzunaAppId: normalize(process.env.ADZUNA_APP_ID),
     adzunaAppKey: normalize(process.env.ADZUNA_APP_KEY),
+    omkarApiKey: normalize(process.env.OMKAR_API_KEY),
+    omkarContactApiUrl: normalize(process.env.OMKAR_CONTACT_API_URL),
+    rapidApiKey: normalize(process.env.RAPIDAPI_KEY),
+    rapidApiHost: normalize(process.env.RAPIDAPI_HOST),
     appUrl: publicEnv.appUrl,
   };
 }
@@ -86,6 +90,10 @@ export function isApolloConfigured(): boolean {
 
 export function isAdzunaConfigured(): boolean {
   return Boolean(normalize(process.env.ADZUNA_APP_ID) && normalize(process.env.ADZUNA_APP_KEY));
+}
+
+export function isOmkarConfigured(): boolean {
+  return Boolean(normalize(process.env.OMKAR_API_KEY) || normalize(process.env.OMKAR_CONTACT_API_URL));
 }
 
 export function isProblemDiscoveryConfigured(): boolean {

@@ -2,6 +2,7 @@ import { AppPageShell } from "@/components/app/page-shell";
 import { AddContactForm } from "@/components/app/add-contact-form";
 import { AnalyzeWebsiteButton } from "@/components/app/analyze-website-button";
 import { ContactDetails, firstContact } from "@/components/app/contact-details";
+import { ScanContactsButton } from "@/components/app/scan-contacts-button";
 import { NotConfiguredState } from "@/components/ui/feedback";
 import { ButtonLink, Card } from "@/components/ui/primitives";
 import { isOpenRouterConfigured } from "@/lib/env";
@@ -171,6 +172,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
       actions={
         <>
           <AnalyzeWebsiteButton targetId={targetId} />
+          <ScanContactsButton targetId={targetId} />
           <ButtonLink href="#add-contact" variant="outline">
             Add contact
           </ButtonLink>

@@ -382,6 +382,19 @@ export async function discoverPublicWebsiteContact(url: string, domain?: string 
   return merged;
 }
 
+/** Local public crawl, then optional Omkar / self-hosted deeper crawl when configured. */
+export async function enrichWebsiteContact(url: string, domain?: string | null): Promise<ExtractedContact> {
+  const local = await discoverPublicWebsiteContact(url, domain);
+  if (hasPublicContact(local) && local.linkedinUrl) return local;
+  try {
+    const { discoverOmkarWebsiteContact } = await import("@/lib/opportunities/omkar-contact");
+    const deeper = await discoverOmkarWebsiteContact(domain || url);
+    return mergeContacts(local, deeper);
+  } catch {
+    return local;
+  }
+}
+
 type ApolloPerson = {
   name?: string;
   first_name?: string;

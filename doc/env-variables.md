@@ -60,6 +60,20 @@ Also add to Google authorized JavaScript origins:
 - `ADZUNA_APP_ID`
 - `ADZUNA_APP_KEY`
 
+## Contact enrichment (server, optional)
+
+Public site crawl is built in and needs no key.
+
+Omkar deeper crawl (optional):
+
+- `OMKAR_API_KEY` — from https://www.omkar.cloud/auth/sign-up?redirect=/api-key
+- `OMKAR_CONTACT_API_URL` — only if you self-host Omkar; must expose `GET /contacts?website=`
+- `RAPIDAPI_KEY` / `RAPIDAPI_HOST` — only if you route Omkar through RapidAPI
+
+Hacker News problem discovery uses the public Algolia API and needs no key.
+
+SmartScan is a browser tool only: https://smartscan.tools/ — paste results with Add contact.
+
 ## Vercel (this is where API keys must live)
 
 Clientra is a Next.js app. Discovery, website analysis, OpenRouter, Apollo, Adzuna, urlscan, and Gmail OAuth all run on the Vercel server. They read `process.env.*`.

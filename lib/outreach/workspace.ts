@@ -1,7 +1,7 @@
 import { isOpenRouterConfigured } from "@/lib/env";
 import {
   discoverApolloPersonContact,
-  discoverPublicWebsiteContact,
+  enrichWebsiteContact,
   extractContactFromRaw,
   hasPublicContact,
   mergeContacts,
@@ -49,7 +49,7 @@ export async function enrichOpportunityContact(
     !siteUrl ||
     /news\.ycombinator\.com|adzuna\.|indeed\.|linkedin\.com/i.test(siteUrl);
   if (!skipScrape && siteUrl && (!merged.email || !merged.phone || !merged.linkedinUrl)) {
-    merged = mergeContacts(merged, await discoverPublicWebsiteContact(siteUrl, opportunity.domain));
+    merged = mergeContacts(merged, await enrichWebsiteContact(siteUrl, opportunity.domain));
   }
   const peopleChecked = Boolean(existing?.notes?.includes("apollo_people: checked"));
   if (!merged.email && !peopleChecked && opportunity.domain && opportunity.source === "apollo") {
