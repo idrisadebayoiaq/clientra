@@ -10,8 +10,6 @@ import { isOpenRouterConfigured } from "@/lib/env";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 
-export const maxDuration = 60;
-
 function asOverview(value: unknown) {
   if (!value || typeof value !== "object") return null;
   const row = value as { businessType?: unknown; industry?: unknown; label?: unknown; summary?: unknown };
