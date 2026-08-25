@@ -8,6 +8,13 @@ import { parseJsonFromModel } from "@/lib/ai/json";
 import { getModel } from "@/lib/ai/client";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { shouldPersistWebsite } from "@/lib/opportunities/domains";
+import {
+  discoverPublicWebsiteContact,
+  hasPublicContact,
+  mergeContacts,
+  socialNotes,
+  type ExtractedContact,
+} from "@/lib/opportunities/public-contact";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 
@@ -219,6 +226,75 @@ ${JSON.stringify(evidence)}`;
           last_verified_at: new Date().toISOString(),
         })
         .eq("id", websiteId);
+    }
+
+    if (canScanSite && (websiteId || opportunity?.id)) {
+      let contact: ExtractedContact = {
+        email: page.emails[0] ?? null,
+        phone: page.phones[0] ?? null,
+        website: page.finalUrl ?? url,
+        linkedinUrl: null,
+        facebookUrl: null,
+        twitterUrl: null,
+        fullName: null,
+        businessName: page.ogSiteName ?? evidence.company,
+      };
+      if (!contact.email) {
+        const siteUrl = page.finalUrl ?? url;
+        if (siteUrl) {
+          contact = mergeContacts(contact, await discoverPublicWebsiteContact(siteUrl, domain));
+        }
+      }
+      if (hasPublicContact(contact) || contact.linkedinUrl) {
+        const { data: existing } = opportunity?.id
+          ? await supabase
+              .from("contacts")
+              .select("id, email, phone, notes, website, full_name, business_name")
+              .eq("opportunity_id", opportunity.id)
+              .maybeSingle()
+          : websiteId
+            ? await supabase
+                .from("contacts")
+                .select("id, email, phone, notes, website, full_name, business_name")
+                .eq("website_id", websiteId)
+                .maybeSingle()
+            : { data: null };
+        const row = {
+          user_id: user.id,
+          opportunity_id: opportunity?.id ?? null,
+          website_id: websiteId,
+          full_name: contact.fullName,
+          business_name: contact.businessName,
+          email: contact.email,
+          phone: contact.phone,
+          website: contact.website,
+          notes: socialNotes(contact) || null,
+          source_reference: opportunity?.source ?? "manual",
+          verification_status: "unverified" as const,
+        };
+        if (existing) {
+          await supabase
+            .from("contacts")
+            .update({
+              email: existing.email || row.email,
+              phone: existing.phone || row.phone,
+              website: existing.website || row.website,
+              notes: existing.notes || row.notes,
+              full_name: existing.full_name || row.full_name,
+              business_name: existing.business_name || row.business_name,
+            })
+            .eq("id", existing.id);
+        } else {
+          await supabase.from("contacts").insert(row);
+        }
+        if (opportunity?.id) {
+          await supabase.from("opportunities").update({ contact_available: hasPublicContact(contact) }).eq("id", opportunity.id);
+        }
+        if (websiteId && contact.email) {
+          await supabase.from("websites").update({ has_email: true }).eq("id", websiteId);
+        }
+        revalidatePath("/contacts");
+      }
     }
 
     let analysisId: string | null = null;

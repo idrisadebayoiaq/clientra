@@ -1,4 +1,4 @@
-import { extractContactFromText } from "@/lib/opportunities/public-contact";
+import { extractContactFromHtml } from "@/lib/opportunities/public-contact";
 import { getServerEnv, isUrlscanConfigured } from "@/lib/env";
 
 export type WebsiteEvidence = {
@@ -207,7 +207,7 @@ function parseHtml(html: string, finalUrl: string, domain: string, status: numbe
   const blocked = isChallengePage(html, title, status);
   const lang = html.match(/<html[^>]*lang=["']([^"']+)/i)?.[1] ?? null;
   const tech = detectTech(html);
-  const contact = extractContactFromText(html, domain);
+  const contact = blocked ? null : extractContactFromHtml(html, domain, finalUrl);
   return {
     fetched: !blocked,
     finalUrl,
@@ -215,7 +215,7 @@ function parseHtml(html: string, finalUrl: string, domain: string, status: numbe
     https: finalUrl.startsWith("https://"),
     title: blocked ? null : title,
     metaDescription: blocked ? null : attr(html, "description") ?? attr(html, "og:description"),
-    ogSiteName: blocked ? null : attr(html, "og:site_name"),
+    ogSiteName: blocked ? null : attr(html, "og:site_name") ?? contact?.businessName ?? null,
     ogTitle: blocked ? null : attr(html, "og:title"),
     canonical: blocked ? null : html.match(/rel=["']canonical["'][^>]*href=["']([^"']+)/i)?.[1] ?? null,
     generator: blocked ? null : attr(html, "generator"),
@@ -227,8 +227,8 @@ function parseHtml(html: string, finalUrl: string, domain: string, status: numbe
     hasViewport: blocked ? null : Boolean(attr(html, "viewport") || /name=["']viewport["']/i.test(html)),
     jsonLdTypes: blocked ? [] : jsonLdTypes(html),
     textSnippet: blocked ? null : visibleText(html),
-    emails: contact.email ? [contact.email] : [],
-    phones: contact.phone ? [contact.phone] : [],
+    emails: contact?.email ? [contact.email] : [],
+    phones: contact?.phone ? [contact.phone] : [],
     country: null,
     city: null,
     server: null,

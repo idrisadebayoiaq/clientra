@@ -48,7 +48,7 @@ export async function enrichOpportunityContact(
   const skipScrape =
     !siteUrl ||
     /news\.ycombinator\.com|adzuna\.|indeed\.|linkedin\.com/i.test(siteUrl);
-  if (!merged.email && !skipScrape) {
+  if (!skipScrape && siteUrl && (!merged.email || !merged.phone || !merged.linkedinUrl)) {
     merged = mergeContacts(merged, await discoverPublicWebsiteContact(siteUrl, opportunity.domain));
   }
   const peopleChecked = Boolean(existing?.notes?.includes("apollo_people: checked"));
