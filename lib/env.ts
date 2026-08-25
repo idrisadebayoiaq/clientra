@@ -11,10 +11,24 @@ function required(name: string, value: string | undefined): string {
   return normalized;
 }
 
+function defaultAppUrl() {
+  const explicit = normalize(process.env.NEXT_PUBLIC_APP_URL);
+  if (explicit) return explicit.replace(/\/$/, "");
+  const vercelProduction = normalize(process.env.VERCEL_PROJECT_PRODUCTION_URL);
+  if (vercelProduction) {
+    return vercelProduction.startsWith("http")
+      ? vercelProduction.replace(/\/$/, "")
+      : `https://${vercelProduction}`;
+  }
+  const vercelUrl = normalize(process.env.VERCEL_URL);
+  if (vercelUrl) return `https://${vercelUrl.replace(/\/$/, "")}`;
+  return "http://localhost:3000";
+}
+
 export const publicEnv = {
   supabaseUrl: normalize(process.env.NEXT_PUBLIC_SUPABASE_URL),
   supabaseAnonKey: normalize(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-  appUrl: normalize(process.env.NEXT_PUBLIC_APP_URL) || "http://localhost:3000",
+  appUrl: defaultAppUrl(),
 };
 
 export function getServerEnv() {

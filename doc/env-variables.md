@@ -62,6 +62,28 @@ Also add to Google authorized JavaScript origins:
 - `ADZUNA_APP_ID`
 - `ADZUNA_APP_KEY`
 
+## Vercel
+
+Add the same names in Vercel → Project Settings → Environment Variables. Use Production for the live site. Set Preview too if you want feature-branch deploys to call the APIs.
+
+On Vercel, `NEXT_PUBLIC_APP_URL` and `GOOGLE_REDIRECT_URI` must be the deployed origin, not `http://localhost:3000`.
+
+Example production values (not secrets):
+
+- `NEXT_PUBLIC_APP_URL=https://clientra.vercel.app`
+- `GOOGLE_REDIRECT_URI=https://clientra.vercel.app/api/auth/google/callback`
+- `GOOGLE_REDIRECT_URI_PRODUCTION=https://clientra.vercel.app/api/auth/google/callback`
+
+Also in the Supabase dashboard:
+
+- Site URL: `https://clientra.vercel.app`
+- Redirect URLs: `https://clientra.vercel.app/auth/callback`
+
+Also in Google Cloud OAuth:
+
+- Authorized JavaScript origin: `https://clientra.vercel.app`
+- Authorized redirect URI: `https://clientra.vercel.app/api/auth/google/callback`
+
 ## Never expose to the browser
 
 - `SUPABASE_SERVICE_ROLE_KEY`
