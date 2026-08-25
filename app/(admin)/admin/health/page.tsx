@@ -19,6 +19,7 @@ export default async function AdminHealthPage() {
     { provider: "urlscan", status: isUrlscanConfigured() ? "connected" : "not_configured" },
     { provider: "apollo", status: isApolloConfigured() ? "connected" : "not_configured" },
     { provider: "adzuna", status: isAdzunaConfigured() ? "connected" : "not_configured" },
+    { provider: "hacker_news", status: "connected" },
     { provider: "pubsub", status: isGmailOAuthConfigured() && process.env.GOOGLE_PUBSUB_TOPIC ? "connected" : "not_configured" },
   ];
 

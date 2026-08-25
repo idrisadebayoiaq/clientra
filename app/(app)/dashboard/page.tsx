@@ -3,11 +3,13 @@ import { Card } from "@/components/ui/primitives";
 import { EmptyState, PageHeader } from "@/components/ui/feedback";
 import { PIPELINE_STAGES } from "@/lib/constants";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { ensureUserDiscovery } from "@/app/(app)/discover/actions";
 import { formatRelativeTime } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return null;
+  await ensureUserDiscovery();
 
   const [
     opportunities,
@@ -154,7 +156,7 @@ export default async function DashboardPage() {
           <EmptyState
             className="mt-3"
             title="No opportunities yet"
-            description="Use Discover to import websites, companies, and jobs. The feed, CRM, and analysis workspace only show stored records."
+            description="The first time you open the workspace, Clientra imports live websites, public requests, companies, and jobs. Use Discover if this feed is still empty."
           />
         )}
       </section>

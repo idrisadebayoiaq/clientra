@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/audit";
-import { exchangeGmailCode, gmailOAuthConfigured, resolveGmailRedirectUri } from "@/lib/gmail/oauth";
+import { exchangeGmailCode, gmailAppOrigin, gmailOAuthConfigured, resolveGmailRedirectUri } from "@/lib/gmail/oauth";
 import { startGmailWatch } from "@/lib/gmail/watch";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const origin = url.origin;
+  const origin = gmailAppOrigin();
   const done = (path: string) => NextResponse.redirect(new URL(path, origin));
 
   if (!gmailOAuthConfigured()) {
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   }
 
   await admin.from("oauth_states").delete().eq("id", saved.id);
-  const redirectUri = resolveGmailRedirectUri(request);
+  const redirectUri = resolveGmailRedirectUri();
 
   try {
     const tokens = await exchangeGmailCode(code, redirectUri);

@@ -1,13 +1,14 @@
 import { AppPageShell, SourceNotReady } from "@/components/app/page-shell";
 import { DiscoverSourceButton } from "@/components/app/discover-source-button";
 import { OpportunityCard } from "@/components/app/opportunity-card";
-import { discoverJobs } from "@/app/(app)/discover/actions";
+import { discoverJobs, ensureUserDiscovery } from "@/app/(app)/discover/actions";
 import { isAdzunaConfigured } from "@/lib/env";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export default async function JobsPage() {
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return null;
+  await ensureUserDiscovery();
   const configured = isAdzunaConfigured();
   const { data } = configured
     ? await supabase

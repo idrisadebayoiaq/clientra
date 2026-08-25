@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/primitives";
 
@@ -9,11 +10,12 @@ export function DiscoverSourceButton({
   pendingLabel,
   successLabel,
 }: {
-  action: () => Promise<{ ok: boolean; count?: number; error?: string }>;
+  action: () => Promise<{ ok: boolean; count?: number; error?: string; warning?: string }>;
   label: string;
   pendingLabel: string;
   successLabel?: string;
 }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -24,9 +26,10 @@ export function DiscoverSourceButton({
     setLoading(false);
     setMessage(
       result.ok
-        ? (successLabel ?? `Imported ${result.count ?? 0} records.`)
+        ? (successLabel ?? `Imported ${result.count ?? 0} records.${result.warning ? ` ${result.warning}` : ""}`)
         : result.error ?? "Request failed",
     );
+    if (result.ok) router.refresh();
   }
 
   return (

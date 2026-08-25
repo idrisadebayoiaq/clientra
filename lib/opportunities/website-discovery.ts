@@ -43,10 +43,10 @@ export const websiteDiscoveryAdapter: OpportunitySourceAdapter = {
     if (!isUrlscanConfigured()) throw new SourceNotConfiguredError("Website Discovery");
     const env = getServerEnv();
     const hours = options?.freshnessHours ?? 48;
-    const days = hours <= 24 ? "1d" : hours <= 48 ? "2d" : "3d";
+    const days = hours <= 24 ? "24h" : hours <= 48 ? "2d" : "3d";
     const response = await fetch(
-      `https://urlscan.io/api/v1/search/?q=date:>now-${days} AND page.status:200&size=25`,
-      { headers: { "API-Key": env.urlscanApiKey } },
+      `https://urlscan.io/api/v1/search/?q=${encodeURIComponent(`date:>now-${days} AND page.status:200`)}&size=25`,
+      { headers: { "API-Key": env.urlscanApiKey, "User-Agent": "clientra/0.1" } },
     );
     if (!response.ok) {
       throw new Error("Website discovery provider request failed");

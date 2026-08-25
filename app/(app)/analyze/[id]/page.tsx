@@ -1,8 +1,7 @@
 import { AppPageShell } from "@/components/app/page-shell";
-import { DiscoverSourceButton } from "@/components/app/discover-source-button";
+import { AnalyzeWebsiteButton } from "@/components/app/analyze-website-button";
 import { NotConfiguredState } from "@/components/ui/feedback";
 import { Card } from "@/components/ui/primitives";
-import { runAnalysis } from "@/app/(app)/analyze/actions";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Tables } from "@/types/database";
@@ -23,7 +22,13 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
 
   const { data: website } = await supabase.from("websites").select("*").eq("id", id).maybeSingle();
   const { data: opportunity } = website
-    ? await supabase.from("opportunities").select("*").eq("website_id", website.id).maybeSingle()
+    ? await supabase
+        .from("opportunities")
+        .select("*")
+        .eq("website_id", website.id)
+        .order("discovered_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
     : await supabase.from("opportunities").select("*").eq("id", id).maybeSingle();
 
   const websiteId = website?.id ?? opportunity?.website_id ?? null;
@@ -56,21 +61,27 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
 
   const configured = isOpenRouterConfigured();
   const targetId = website?.id ?? opportunity?.id ?? id;
+  const title = website?.business_name ?? website?.domain ?? opportunity?.title ?? "Website";
+  const technology = website?.technology?.length ? website.technology.join(", ") : "Unable to determine";
+
+  if (!website && !opportunity) {
+    return (
+      <AppPageShell
+        title="Analyze Website"
+        description="This record was not found in your workspace."
+      >
+        <Card className="p-5 text-sm text-ink-muted">
+          Open Analyze Website from the sidebar and paste a URL, or choose a site from Website Opportunities.
+        </Card>
+      </AppPageShell>
+    );
+  }
 
   return (
     <AppPageShell
-      title="Analyze Website"
+      title={`Analyze ${title}`}
       description="AI analysis workspace. Findings are labeled Detected, Possible, or Unable to determine."
-      actions={
-        configured ? (
-          <DiscoverSourceButton
-            action={() => runAnalysis(targetId)}
-            label="Run analysis"
-            pendingLabel="Analyzing…"
-            successLabel="Analysis saved."
-          />
-        ) : undefined
-      }
+      actions={configured ? <AnalyzeWebsiteButton targetId={targetId} /> : undefined}
     >
       {!configured ? (
         <NotConfiguredState
@@ -87,7 +98,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
             <Row label="Business type" value={website?.business_type ?? "Unable to determine"} />
             <Row label="Industry" value={website?.industry ?? opportunity?.industry ?? "Unable to determine"} />
             <Row label="Location" value={website?.location ?? opportunity?.location ?? "Unable to determine"} />
-            <Row label="Technology" value={website?.technology.join(", ") || "Unable to determine"} />
+            <Row label="Technology" value={technology} />
             <Row
               label="Ecommerce"
               value={website?.is_ecommerce == null ? "Unable to determine" : website.is_ecommerce ? "Yes" : "No"}
@@ -108,7 +119,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
             <ul className="mt-2 space-y-2 text-sm">
               {painPoints.map((item) => (
                 <li key={item.id}>
-                    <strong className="capitalize">{item.severity}:</strong> {item.title} ({item.confidence.replace(/_/g, " ")})
+                    <strong className="capitalize">{item.severity}:</strong> {item.title} ({(item.confidence ?? "unable_to_determine").replace(/_/g, " ")})
                 </li>
               ))}
             </ul>

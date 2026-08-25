@@ -7,30 +7,38 @@ Work incrementally. Do not fake live discovery APIs.
 | Phase | Focus | Status |
 | --- | --- | --- |
 | 1 | Existing project audit | Done |
-| 2 | Application shell + navigation | In progress |
-| 3 | Supabase database + RLS | Pending |
-| 4 | Authentication and onboarding | Pending |
-| 5 | Dashboard | Pending |
-| 6 | Opportunity / lead data model + UI | Pending |
-| 7 | AI service using OpenRouter | Pending |
-| 8 | Website analysis UI | Pending |
-| 9 | Gmail OAuth | Pending |
-| 10 | Gmail send/read service | Pending |
-| 11 | Gmail Pub/Sub webhook | Pending |
-| 12 | AI reply detection | Pending |
-| 13 | CRM | Pending |
-| 14 | Outreach + follow-ups | Pending |
-| 15 | Discovery source adapters | Pending |
-| 16 | Future API integrations | Pending |
+| 2 | Application shell + navigation | Done |
+| 3 | Supabase database + RLS | Done |
+| 4 | Authentication and onboarding | Done |
+| 5 | Dashboard | Done |
+| 6 | Opportunity / lead data model + UI | Done |
+| 7 | AI service using OpenRouter | Done |
+| 8 | Website analysis UI | Done |
+| 9 | Gmail OAuth | Done |
+| 10 | Gmail send/read service | Done |
+| 11 | Gmail Pub/Sub webhook | Done |
+| 12 | AI reply detection | Done |
+| 13 | CRM | Done |
+| 14 | Outreach + follow-ups | Done |
+| 15 | Discovery source adapters | Done |
+| 16 | Future API integrations | Social networks remain copy-only |
 
 ## Rules
 
 1. Reuse the design system on every page.
 2. Server secrets stay on the server. Never put them in `NEXT_PUBLIC_*`.
-3. Unconfigured APIs show **Not configured** / **Coming soon**.
+3. Unconfigured APIs show **Not configured** / **Coming soon**. Empty connected sources show **No records imported yet**.
 4. Demo records must be marked `DEMO` and never mixed with live provider data.
 5. All Supabase schema changes go through MCP `apply_migration`.
 6. After each phase, document files, env vars, migrations, and how to test.
+
+## Live discovery sources
+
+- urlscan → Website Opportunities
+- Hacker News Algolia (public official API) → Problem Opportunities
+- Apollo organizations search → companies in Discover
+- Adzuna jobs API → Job Opportunities
+- First signed-in workspace visit auto-imports when the feed is empty
 
 ## Local development
 

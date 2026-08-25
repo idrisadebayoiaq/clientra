@@ -22,7 +22,7 @@ Required env names: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT
 
 Manual Google Cloud setup still required:
 
-1. Authorized redirect `http://localhost:3000/api/auth/google/callback` and `https://clientra.vercel.app/api/auth/google/callback`
+1. Authorized redirect `https://clientra-xi.vercel.app/api/auth/google/callback` only (do not use localhost for Gmail)
 2. Gmail API enabled
 3. Pub/Sub topic/subscription if using push notifications
 
@@ -31,10 +31,11 @@ Manual Google Cloud setup still required:
 `lib/opportunities/` has replaceable adapters:
 
 - urlscan → website discovery
+- Hacker News Algolia → problem posts (public official API, no extra key)
 - Apollo `/organizations/search` → companies
 - Adzuna jobs API → job opportunities
 
-Unconfigured sources throw `SourceNotConfiguredError` and the UI shows **Not configured**. Social, Google Search, and Brave Search are intentionally not wired yet.
+Unconfigured sources throw `SourceNotConfiguredError`. Facebook, Instagram, LinkedIn, X, and Outlook stay copy-and-open-profile only.
 
 ## Background jobs
 

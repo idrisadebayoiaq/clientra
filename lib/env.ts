@@ -11,6 +11,9 @@ function required(name: string, value: string | undefined): string {
   return normalized;
 }
 
+export const PRODUCTION_APP_URL = "https://clientra-xi.vercel.app";
+export const GMAIL_REDIRECT_URI = `${PRODUCTION_APP_URL}/api/auth/google/callback`;
+
 function defaultAppUrl() {
   const explicit = normalize(process.env.NEXT_PUBLIC_APP_URL);
   if (explicit) return explicit.replace(/\/$/, "");
@@ -53,11 +56,8 @@ export function getServerEnv() {
     googleProjectNumber:
       normalize(process.env.GOOGLE_CLOUD_PROJECT_NUMBER) ||
       normalize(process.env.GOOGLE_PROJECT_NUMBER),
-    googleRedirectUri:
-      normalize(process.env.GOOGLE_REDIRECT_URI) || `${publicEnv.appUrl}/api/auth/google/callback`,
-    googleRedirectUriProduction:
-      normalize(process.env.GOOGLE_REDIRECT_URI_PRODUCTION) ||
-      "https://clientra.vercel.app/api/auth/google/callback",
+    googleRedirectUri: GMAIL_REDIRECT_URI,
+    googleRedirectUriProduction: GMAIL_REDIRECT_URI,
     googlePubsubTopic: normalize(process.env.GOOGLE_PUBSUB_TOPIC),
     googlePubsubSubscription: normalize(process.env.GOOGLE_PUBSUB_SUBSCRIPTION),
     urlscanApiKey: normalize(process.env.URLSCAN_API_KEY),
@@ -86,4 +86,8 @@ export function isApolloConfigured(): boolean {
 
 export function isAdzunaConfigured(): boolean {
   return Boolean(normalize(process.env.ADZUNA_APP_ID) && normalize(process.env.ADZUNA_APP_KEY));
+}
+
+export function isProblemDiscoveryConfigured(): boolean {
+  return true;
 }

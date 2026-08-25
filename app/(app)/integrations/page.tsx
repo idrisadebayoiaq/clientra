@@ -84,6 +84,11 @@ export default async function IntegrationsPage({
             body: "Imports newly detected public websites into Website Opportunities.",
           },
           {
+            name: "Hacker News",
+            ready: true,
+            body: "Imports recent public Ask HN and hiring/help requests into Problem Opportunities. No extra API key is required.",
+          },
+          {
             name: "Apollo",
             ready: isApolloConfigured(),
             body: "Finds companies that may match the services you sell.",

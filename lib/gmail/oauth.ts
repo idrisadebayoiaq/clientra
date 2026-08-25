@@ -1,4 +1,4 @@
-import { getServerEnv, isGmailOAuthConfigured } from "@/lib/env";
+import { GMAIL_REDIRECT_URI, PRODUCTION_APP_URL, getServerEnv, isGmailOAuthConfigured } from "@/lib/env";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.send",
@@ -9,21 +9,16 @@ const SCOPES = [
   "profile",
 ].join(" ");
 
-export const ALLOWED_GMAIL_ORIGINS = [
-  "http://localhost:3000",
-  "https://clientra.vercel.app",
-] as const;
-
 export function gmailOAuthConfigured() {
   return isGmailOAuthConfigured();
 }
 
-export function resolveGmailRedirectUri(request: Request) {
-  const origin = new URL(request.url).origin;
-  if ((ALLOWED_GMAIL_ORIGINS as readonly string[]).includes(origin)) {
-    return `${origin}/api/auth/google/callback`;
-  }
-  return getServerEnv().googleRedirectUri;
+export function resolveGmailRedirectUri(_request?: Request) {
+  return GMAIL_REDIRECT_URI;
+}
+
+export function gmailAppOrigin() {
+  return PRODUCTION_APP_URL;
 }
 
 export function buildGmailAuthUrl(state: string, redirectUri: string) {

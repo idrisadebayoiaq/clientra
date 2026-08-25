@@ -1567,6 +1567,9 @@ export type Database = {
           created_at: string
           freshness_hours: number
           id: string
+          last_discovery_at: string | null
+          last_discovery_count: number | null
+          last_discovery_error: string | null
           outreach_mode: Database["public"]["Enums"]["approval_mode"]
           project_value_max: number | null
           project_value_min: number | null
@@ -1586,6 +1589,9 @@ export type Database = {
           created_at?: string
           freshness_hours?: number
           id?: string
+          last_discovery_at?: string | null
+          last_discovery_count?: number | null
+          last_discovery_error?: string | null
           outreach_mode?: Database["public"]["Enums"]["approval_mode"]
           project_value_max?: number | null
           project_value_min?: number | null
@@ -1605,6 +1611,9 @@ export type Database = {
           created_at?: string
           freshness_hours?: number
           id?: string
+          last_discovery_at?: string | null
+          last_discovery_count?: number | null
+          last_discovery_error?: string | null
           outreach_mode?: Database["public"]["Enums"]["approval_mode"]
           project_value_max?: number | null
           project_value_min?: number | null
