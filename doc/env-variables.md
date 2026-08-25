@@ -60,9 +60,15 @@ Also add to Google authorized JavaScript origins:
 - `ADZUNA_APP_ID`
 - `ADZUNA_APP_KEY`
 
-## Vercel
+## Vercel (this is where API keys must live)
+
+Clientra is a Next.js app. Discovery, website analysis, OpenRouter, Apollo, Adzuna, urlscan, and Gmail OAuth all run on the Vercel server. They read `process.env.*`.
+
+They do **not** read Supabase Edge Function secrets. Putting keys only in Edge Functions → Secrets will not enable urlscan, Apollo, jobs, or AI analysis.
 
 Add the same names in Vercel → Project Settings → Environment Variables. Use Production for the live site. Set Preview too if you want feature-branch deploys to call the APIs.
+
+After adding or changing a key, redeploy (or wait for the next git push) so the new values load.
 
 On Vercel, `NEXT_PUBLIC_APP_URL` and `GOOGLE_REDIRECT_URI` must be the deployed origin, not `http://localhost:3000`.
 
@@ -72,7 +78,11 @@ Example production values (not secrets):
 - `GOOGLE_REDIRECT_URI=https://clientra-xi.vercel.app/api/auth/google/callback`
 - `GOOGLE_REDIRECT_URI_PRODUCTION=https://clientra-xi.vercel.app/api/auth/google/callback`
 
-Also in the Supabase dashboard:
+## Supabase (database + Auth only)
+
+This project does not deploy or call Supabase Edge Functions. Tables, RLS, and Auth triggers already live in the hosted database.
+
+In the Supabase dashboard, only Auth URLs need to match production:
 
 - Site URL: `https://clientra-xi.vercel.app`
 - Redirect URLs: `https://clientra-xi.vercel.app/auth/callback`

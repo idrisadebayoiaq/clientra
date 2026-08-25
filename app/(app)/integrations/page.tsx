@@ -27,7 +27,10 @@ export default async function IntegrationsPage({
   const gmailReady = isGmailOAuthConfigured();
 
   return (
-    <AppPageShell title="Integrations" description="Connect official providers. Unsupported networks stay on copy-and-open-profile workflows.">
+    <AppPageShell
+      title="Integrations"
+      description="Provider status is read from this app’s server environment on Vercel, not from Supabase Edge Function secrets. Unsupported networks stay on copy-and-open-profile workflows."
+    >
       {params.gmail === "connected" ? (
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           Gmail is connected. You can send a test email, then use outreach from a real opportunity.
