@@ -56,7 +56,7 @@ export const websiteDiscoveryAdapter: OpportunitySourceAdapter = {
     const query = `date:>now-${days} AND page.status:200${countryQuery}`;
     const response = await fetch(
       `https://urlscan.io/api/v1/search/?q=${encodeURIComponent(query)}&size=25`,
-      { headers: { "API-Key": env.urlscanApiKey, "User-Agent": "clientra/0.1" } },
+      { headers: { "API-Key": env.urlscanApiKey, "api-key": env.urlscanApiKey, "User-Agent": "clientra/0.1" } },
     );
     if (!response.ok) {
       throw new Error("Website discovery provider request failed");

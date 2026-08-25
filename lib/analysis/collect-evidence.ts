@@ -30,6 +30,26 @@ export type WebsiteEvidence = {
   notes: string[];
 };
 
+type UrlscanHit = {
+  _id?: string;
+  task?: { uuid?: string; url?: string };
+  page?: {
+    title?: string;
+    domain?: string;
+    url?: string;
+    country?: string;
+    city?: string;
+    server?: string;
+    ip?: string;
+    status?: string | number;
+  };
+};
+
+type UrlscanResult = UrlscanHit & {
+  meta?: { processors?: { wappa?: { data?: Array<{ app?: string }> } } };
+  verdicts?: { overall?: { malicious?: boolean } };
+};
+
 const TECH_SIGNATURES: Array<{ name: string; pattern: RegExp; platform?: boolean; ecommerce?: boolean }> = [
   { name: "Shopify", pattern: /cdn\.shopify\.com|Shopify\.theme|myshopify\.com/i, platform: true, ecommerce: true },
   { name: "WooCommerce", pattern: /woocommerce|wp-content\/plugins\/woocommerce/i, platform: true, ecommerce: true },
@@ -47,6 +67,16 @@ const TECH_SIGNATURES: Array<{ name: string; pattern: RegExp; platform?: boolean
   { name: "HubSpot", pattern: /hs-scripts\.com|hubspot/i },
   { name: "Stripe", pattern: /js\.stripe\.com|Stripe\(/i, ecommerce: true },
 ];
+
+function urlscanHeaders() {
+  const headers: Record<string, string> = { "User-Agent": "clientra/0.1" };
+  if (isUrlscanConfigured()) {
+    const key = getServerEnv().urlscanApiKey;
+    headers["API-Key"] = key;
+    headers["api-key"] = key;
+  }
+  return headers;
+}
 
 function decode(value: string) {
   return value
@@ -89,7 +119,9 @@ function collectHeadings(html: string) {
 }
 
 function jsonLdTypes(html: string) {
-  const blocks = Array.from(html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi));
+  const blocks = Array.from(
+    html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi),
+  );
   const types: string[] = [];
   for (const block of blocks) {
     try {
@@ -123,16 +155,19 @@ function detectTech(html: string) {
   return { technologies: Array.from(new Set(technologies)), platform, isEcommerce: ecommerce || null };
 }
 
-function isChallengePage(html: string, title: string | null) {
-  const compact = html.slice(0, 8000).toLowerCase();
+function isChallengePage(html: string, title: string | null, status: number | null) {
+  if (status && status >= 400) return true;
+  const compact = html.slice(0, 12000).toLowerCase();
   const titleText = (title ?? "").toLowerCase();
   return (
     html.length < 500 ||
-    /just a moment|attention required|access denied|cf-browser-verification|cdn-cgi\/challenge-platform|enable javascript and cookies to continue/i.test(
+    /just a moment|attention required|access denied|cf-browser-verification|cdn-cgi\/challenge-platform|enable javascript and cookies to continue|it needs a human touch|verify you are human|are you a robot/i.test(
       compact,
     ) ||
     titleText.includes("just a moment") ||
-    titleText.includes("access denied")
+    titleText.includes("access denied") ||
+    titleText.includes("it needs a human touch") ||
+    titleText.includes("attention required")
   );
 }
 
@@ -160,7 +195,7 @@ async function fetchHtml(url: string, timeoutMs = 12000) {
       },
     });
     const type = response.headers.get("content-type") ?? "";
-    if (!type.includes("text/html") && !type.includes("application/xhtml")) {
+    if (!type.includes("text/html") && !type.includes("application/xhtml") && !type.includes("text/plain")) {
       return { ok: false, status: response.status, url: response.url, html: null as string | null };
     }
     const html = (await response.text()).slice(0, 250_000);
@@ -174,10 +209,10 @@ async function fetchHtml(url: string, timeoutMs = 12000) {
 
 function parseHtml(html: string, finalUrl: string, domain: string, status: number | null): WebsiteEvidence {
   const title = tagText(html, "title");
+  const blocked = isChallengePage(html, title, status);
   const lang = html.match(/<html[^>]*lang=["']([^"']+)/i)?.[1] ?? null;
   const tech = detectTech(html);
   const contact = extractContactFromText(html, domain);
-  const blocked = isChallengePage(html, title);
   return {
     fetched: !blocked,
     finalUrl,
@@ -187,7 +222,7 @@ function parseHtml(html: string, finalUrl: string, domain: string, status: numbe
     metaDescription: blocked ? null : attr(html, "description") ?? attr(html, "og:description"),
     ogSiteName: blocked ? null : attr(html, "og:site_name"),
     ogTitle: blocked ? null : attr(html, "og:title"),
-    canonical: blocked ? null : attr(html, "canonical") ?? html.match(/rel=["']canonical["'][^>]*href=["']([^"']+)/i)?.[1] ?? null,
+    canonical: blocked ? null : html.match(/rel=["']canonical["'][^>]*href=["']([^"']+)/i)?.[1] ?? null,
     generator: blocked ? null : attr(html, "generator"),
     language: lang,
     headings: blocked ? [] : collectHeadings(html),
@@ -204,71 +239,12 @@ function parseHtml(html: string, finalUrl: string, domain: string, status: numbe
     server: null,
     ip: null,
     source: blocked ? "none" : "html",
-    notes: blocked ? ["Homepage returned a challenge or empty page, so HTML evidence was ignored."] : [],
+    notes: blocked ? [`Direct page fetch was blocked or returned HTTP ${status ?? "error"}.`] : [],
   };
 }
 
-type UrlscanResult = {
-  page?: {
-    title?: string;
-    domain?: string;
-    url?: string;
-    country?: string;
-    city?: string;
-    server?: string;
-    ip?: string;
-    status?: string | number;
-  };
-  lists?: { servers?: string[]; countries?: string[] };
-  meta?: { processors?: { wappa?: { data?: Array<{ app?: string; confidence?: number }> } } };
-  verdicts?: { overall?: { malicious?: boolean } };
-};
-
-async function urlscanByUuid(uuid: string) {
-  const env = getServerEnv();
-  const response = await fetch(`https://urlscan.io/api/v1/result/${uuid}/`, {
-    headers: { "API-Key": env.urlscanApiKey, "User-Agent": "clientra/0.1" },
-  });
-  if (!response.ok) return null;
-  return (await response.json()) as UrlscanResult;
-}
-
-async function urlscanSearch(domain: string) {
-  if (!isUrlscanConfigured()) return null;
-  const env = getServerEnv();
-  const query = `page.domain:${domain} AND page.status:200`;
-  const response = await fetch(
-    `https://urlscan.io/api/v1/search/?q=${encodeURIComponent(query)}&size=1`,
-    { headers: { "API-Key": env.urlscanApiKey, "User-Agent": "clientra/0.1" } },
-  );
-  if (!response.ok) return null;
-  const json = (await response.json()) as { results?: Array<{ task?: { uuid?: string } }> };
-  const uuid = json.results?.[0]?.task?.uuid;
-  return uuid ? urlscanByUuid(uuid) : null;
-}
-
-function fromUrlscan(scan: UrlscanResult): Partial<WebsiteEvidence> {
-  const apps = (scan.meta?.processors?.wappa?.data ?? [])
-    .map((item) => item.app)
-    .filter((item): item is string => Boolean(item));
+function emptyEvidence(): WebsiteEvidence {
   return {
-    title: scan.page?.title ?? null,
-    finalUrl: scan.page?.url ?? null,
-    https: scan.page?.url ? scan.page.url.startsWith("https://") : null,
-    country: scan.page?.country ?? scan.lists?.countries?.[0] ?? null,
-    city: scan.page?.city ?? null,
-    server: scan.page?.server ?? scan.lists?.servers?.[0] ?? null,
-    ip: scan.page?.ip ?? null,
-    status: scan.page?.status ? Number(scan.page.status) : null,
-    technologies: apps,
-    platform: apps.find((item) => /shopify|wordpress|wix|squarespace|webflow|next/i.test(item)) ?? null,
-    isEcommerce: apps.some((item) => /shopify|woocommerce|magento|bigcommerce|shop/i.test(item)) || null,
-    notes: scan.verdicts?.overall?.malicious ? ["urlscan marked this scan as potentially malicious."] : [],
-  };
-}
-
-function mergeEvidence(html: WebsiteEvidence | null, scan: Partial<WebsiteEvidence> | null): WebsiteEvidence {
-  const empty: WebsiteEvidence = {
     fetched: false,
     finalUrl: null,
     status: null,
@@ -296,17 +272,58 @@ function mergeEvidence(html: WebsiteEvidence | null, scan: Partial<WebsiteEviden
     source: "none",
     notes: [],
   };
-  const base = html ?? empty;
+}
+
+function homepageScore(hit: UrlscanHit, domain: string) {
+  const raw = hit.page?.url ?? hit.task?.url ?? "";
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    if (host !== domain) return -1;
+    let score = 10;
+    if (url.pathname === "/" || url.pathname === "") score += 50;
+    if (!url.search) score += 20;
+    if ((hit.page?.title ?? "").length > 8) score += 5;
+    return score;
+  } catch {
+    return -1;
+  }
+}
+
+function fromUrlscanHit(hit: UrlscanHit, extra?: Partial<WebsiteEvidence>): Partial<WebsiteEvidence> {
+  return {
+    title: hit.page?.title ?? extra?.title ?? null,
+    finalUrl: hit.page?.url ?? extra?.finalUrl ?? null,
+    https: hit.page?.url ? hit.page.url.startsWith("https://") : extra?.https ?? null,
+    country: hit.page?.country ?? extra?.country ?? null,
+    city: hit.page?.city ?? extra?.city ?? null,
+    server: hit.page?.server ?? extra?.server ?? null,
+    ip: hit.page?.ip ?? extra?.ip ?? null,
+    status: hit.page?.status ? Number(hit.page.status) : extra?.status ?? null,
+    technologies: extra?.technologies ?? [],
+    platform: extra?.platform ?? null,
+    isEcommerce: extra?.isEcommerce ?? null,
+    notes: extra?.notes ?? [],
+  };
+}
+
+function mergeEvidence(html: WebsiteEvidence | null, scan: Partial<WebsiteEvidence> | null): WebsiteEvidence {
+  const base = html ?? emptyEvidence();
   if (!scan) return base;
   const technologies = Array.from(new Set([...base.technologies, ...(scan.technologies ?? [])]));
-  const source = html?.fetched && scan.title ? "html+urlscan" : html?.fetched ? "html" : scan.title || scan.finalUrl ? "urlscan" : base.source;
+  const hasScan = Boolean(scan.title || scan.finalUrl);
+  const source = html?.fetched && hasScan ? "html+urlscan" : html?.fetched ? "html" : hasScan ? "urlscan" : base.source;
   return {
     ...base,
-    fetched: Boolean(html?.fetched || scan.title || scan.finalUrl),
-    finalUrl: base.finalUrl ?? scan.finalUrl ?? null,
+    fetched: Boolean(html?.fetched || hasScan),
+    finalUrl: (html?.fetched ? html.finalUrl : null) ?? scan.finalUrl ?? base.finalUrl,
     status: base.status ?? scan.status ?? null,
     https: base.https ?? scan.https ?? null,
-    title: base.title ?? scan.title ?? null,
+    title: (html?.fetched ? html.title : null) ?? scan.title ?? base.title,
+    metaDescription: html?.fetched ? html.metaDescription : base.metaDescription,
+    ogSiteName: html?.fetched ? html.ogSiteName : base.ogSiteName,
+    headings: html?.fetched && html.headings.length ? html.headings : base.headings,
+    textSnippet: html?.fetched ? html.textSnippet : base.textSnippet,
     technologies,
     platform: base.platform ?? scan.platform ?? null,
     isEcommerce: base.isEcommerce ?? scan.isEcommerce ?? null,
@@ -319,14 +336,68 @@ function mergeEvidence(html: WebsiteEvidence | null, scan: Partial<WebsiteEviden
   };
 }
 
+async function urlscanSearchHomepage(domain: string): Promise<UrlscanHit | null> {
+  const query = `page.domain:"${domain}" AND page.status:200`;
+  const response = await fetch(`https://urlscan.io/api/v1/search/?q=${encodeURIComponent(query)}&size=15`, {
+    headers: urlscanHeaders(),
+  });
+  if (!response.ok) return null;
+  const json = (await response.json()) as { results?: UrlscanHit[] };
+  const ranked = (json.results ?? [])
+    .map((hit) => ({ hit, score: homepageScore(hit, domain) }))
+    .filter((row) => row.score >= 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.hit ?? json.results?.[0] ?? null;
+}
+
+async function urlscanByUuid(uuid: string) {
+  const response = await fetch(`https://urlscan.io/api/v1/result/${uuid}/`, {
+    headers: urlscanHeaders(),
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as UrlscanResult;
+}
+
+async function urlscanDom(uuid: string, domain: string, siteUrl?: string | null) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(`https://urlscan.io/dom/${uuid}/`, {
+      signal: controller.signal,
+      headers: urlscanHeaders(),
+    });
+    if (!response.ok) return null;
+    const html = (await response.text()).slice(0, 250_000);
+    if (!html) return null;
+    const parsed = parseHtml(html, siteUrl || `https://${domain}`, domain, 200);
+    if (parsed.fetched) parsed.source = "urlscan";
+    return parsed;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function wappaFromResult(scan: UrlscanResult) {
+  const apps = (scan.meta?.processors?.wappa?.data ?? [])
+    .map((item) => item.app)
+    .filter((item): item is string => Boolean(item));
+  return {
+    technologies: apps,
+    platform: apps.find((item) => /shopify|wordpress|wix|squarespace|webflow|next/i.test(item)) ?? null,
+    isEcommerce: apps.some((item) => /shopify|woocommerce|magento|bigcommerce|shop/i.test(item)) || null,
+    notes: scan.verdicts?.overall?.malicious ? ["urlscan marked this scan as potentially malicious."] : [],
+  };
+}
+
 async function urlscanSubmitAndWait(url: string) {
-  const env = getServerEnv();
+  if (!isUrlscanConfigured()) return null;
   const submit = await fetch("https://urlscan.io/api/v1/scan/", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "API-Key": env.urlscanApiKey,
-      "User-Agent": "clientra/0.1",
+      ...urlscanHeaders(),
     },
     body: JSON.stringify({ url, visibility: "public" }),
   });
@@ -346,32 +417,53 @@ export async function collectWebsiteEvidence(input: {
   domain?: string | null;
   urlscanUuid?: string | null;
 }) {
-  const domain = input.domain?.replace(/^www\./, "") ?? null;
+  const domain = input.domain?.replace(/^www\./, "").toLowerCase() ?? null;
   const startUrl = input.url || (domain ? `https://${domain}` : null);
-  const [page, existingScan] = await Promise.all([
+  const notes: string[] = [];
+
+  const [livePage, searchHit] = await Promise.all([
     startUrl ? fetchHtml(startUrl) : Promise.resolve(null),
-    input.urlscanUuid && isUrlscanConfigured()
-      ? urlscanByUuid(input.urlscanUuid)
-      : domain
-        ? urlscanSearch(domain)
-        : Promise.resolve(null),
+    domain ? urlscanSearchHomepage(domain) : Promise.resolve(null),
   ]);
 
-  const htmlEvidence =
-    page?.html && domain ? parseHtml(page.html, page.url, domain, page.status) : null;
-  let scanEvidence = existingScan ? fromUrlscan(existingScan) : null;
-  let merged = mergeEvidence(htmlEvidence, scanEvidence);
+  const liveParsed =
+    livePage?.html && domain ? parseHtml(livePage.html, livePage.url, domain, livePage.status) : null;
+  const usableLive = liveParsed?.fetched ? liveParsed : null;
+  if (liveParsed && !liveParsed.fetched) notes.push(...liveParsed.notes);
 
-  if (!merged.fetched && startUrl && isUrlscanConfigured()) {
+  const uuid = input.urlscanUuid || searchHit?._id || searchHit?.task?.uuid || null;
+  const siteUrl = searchHit?.page?.url || startUrl;
+  const [domEvidence, fullResult] = uuid
+    ? await Promise.all([
+        domain ? urlscanDom(uuid, domain, siteUrl) : Promise.resolve(null),
+        urlscanByUuid(uuid),
+      ])
+    : [null, null];
+
+  const scanMeta = searchHit
+    ? fromUrlscanHit(searchHit, fullResult ? wappaFromResult(fullResult) : undefined)
+    : fullResult
+      ? fromUrlscanHit(fullResult, wappaFromResult(fullResult))
+      : null;
+
+  let merged = mergeEvidence(usableLive ?? (domEvidence?.fetched ? domEvidence : null), scanMeta);
+  if (domEvidence?.fetched) {
+    merged = mergeEvidence(domEvidence, merged);
+    merged.source = usableLive ? "html+urlscan" : "urlscan";
+  }
+
+  if (!merged.fetched && startUrl) {
     const submitted = await urlscanSubmitAndWait(startUrl);
     if (submitted) {
-      scanEvidence = fromUrlscan(submitted);
-      merged = mergeEvidence(htmlEvidence, scanEvidence);
+      const submittedUuid = submitted._id ?? submitted.task?.uuid;
+      const submittedDom = submittedUuid && domain ? await urlscanDom(submittedUuid, domain) : null;
+      merged = mergeEvidence(submittedDom, fromUrlscanHit(submitted));
     }
   }
 
+  merged.notes = Array.from(new Set([...notes, ...merged.notes]));
   if (!merged.fetched) {
-    merged.notes.push("No live page HTML or urlscan result was available. Findings must stay Unable to determine unless a field is present above.");
+    merged.notes.push("No live page HTML or urlscan result was available.");
   }
   return merged;
 }

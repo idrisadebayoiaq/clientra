@@ -84,8 +84,14 @@ ${JSON.stringify(evidence, null, 2)}`;
   ]);
 
   const parsed = parseJsonFromModel(analysisText) ?? {};
-  const overview = (parsed.overview as Json) ?? { summary: analysisText };
   const overviewFields = asOverview(parsed.overview);
+  const overview = {
+    ...(typeof parsed.overview === "object" && parsed.overview ? (parsed.overview as Record<string, unknown>) : { summary: analysisText }),
+    evidenceSource: page.source,
+    evidenceTitle: page.title,
+    evidenceUrl: page.finalUrl,
+    evidenceNotes: page.notes,
+  } as Json;
   const technical = (parsed.technical as Json) ?? [];
   const business = (parsed.business as Json) ?? [];
   const score =

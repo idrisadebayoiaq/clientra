@@ -69,10 +69,22 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     industry?: string;
     label?: string;
     summary?: string;
+    evidenceSource?: string;
+    evidenceTitle?: string;
+    evidenceUrl?: string;
+    evidenceNotes?: string[];
   } | null;
   const technology = website?.technology?.length ? website.technology.join(", ") : "Unable to determine";
   const businessType = website?.business_type ?? overview?.businessType ?? "Unable to determine";
   const industry = website?.industry ?? opportunity?.industry ?? overview?.industry ?? "Unable to determine";
+  const evidenceLabel =
+    overview?.evidenceSource === "html+urlscan"
+      ? "Live page + urlscan"
+      : overview?.evidenceSource === "urlscan"
+        ? "urlscan"
+        : overview?.evidenceSource === "html"
+          ? "Live page"
+          : null;
 
   if (!website && !opportunity) {
     return (
@@ -102,6 +114,11 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="font-semibold">Website Overview</h2>
+          {evidenceLabel ? (
+            <p className="mt-1 text-xs text-ink-muted">Evidence source: {evidenceLabel}</p>
+          ) : (
+            <p className="mt-1 text-xs text-ink-muted">Run analysis to capture the live page and urlscan data.</p>
+          )}
           <dl className="mt-3 space-y-2 text-sm">
             <Row label="Domain" value={website?.domain ?? opportunity?.domain ?? "Unable to determine"} />
             <Row label="Title" value={website?.title ?? opportunity?.title ?? "Unable to determine"} />
