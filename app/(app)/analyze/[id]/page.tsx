@@ -15,6 +15,8 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+export const maxDuration = 60;
+
 export default async function AnalyzePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user } = await getAuthenticatedUser();
@@ -43,18 +45,18 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     : { data: null };
 
   let painPoints: Tables<"pain_points">[] = [];
-  if (opportunity?.id) {
-    const result = await supabase
-      .from("pain_points")
-      .select("*")
-      .eq("opportunity_id", opportunity.id)
-      .order("created_at", { ascending: false });
-    painPoints = result.data ?? [];
-  } else if (analysis?.id) {
+  if (analysis?.id) {
     const result = await supabase
       .from("pain_points")
       .select("*")
       .eq("website_analysis_id", analysis.id)
+      .order("created_at", { ascending: false });
+    painPoints = result.data ?? [];
+  } else if (opportunity?.id) {
+    const result = await supabase
+      .from("pain_points")
+      .select("*")
+      .eq("opportunity_id", opportunity.id)
       .order("created_at", { ascending: false });
     painPoints = result.data ?? [];
   }
@@ -62,7 +64,15 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
   const configured = isOpenRouterConfigured();
   const targetId = website?.id ?? opportunity?.id ?? id;
   const title = website?.business_name ?? website?.domain ?? opportunity?.title ?? "Website";
+  const overview = (analysis?.overview ?? null) as {
+    businessType?: string;
+    industry?: string;
+    label?: string;
+    summary?: string;
+  } | null;
   const technology = website?.technology?.length ? website.technology.join(", ") : "Unable to determine";
+  const businessType = website?.business_type ?? overview?.businessType ?? "Unable to determine";
+  const industry = website?.industry ?? opportunity?.industry ?? overview?.industry ?? "Unable to determine";
 
   if (!website && !opportunity) {
     return (
@@ -95,8 +105,8 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
           <dl className="mt-3 space-y-2 text-sm">
             <Row label="Domain" value={website?.domain ?? opportunity?.domain ?? "Unable to determine"} />
             <Row label="Title" value={website?.title ?? opportunity?.title ?? "Unable to determine"} />
-            <Row label="Business type" value={website?.business_type ?? "Unable to determine"} />
-            <Row label="Industry" value={website?.industry ?? opportunity?.industry ?? "Unable to determine"} />
+            <Row label="Business type" value={businessType} />
+            <Row label="Industry" value={industry} />
             <Row label="Location" value={website?.location ?? opportunity?.location ?? "Unable to determine"} />
             <Row label="Technology" value={technology} />
             <Row

@@ -7,6 +7,9 @@
     },
     "app/**/page.tsx": {
       "maxDuration": 60
+    },
+    "app/**/actions.ts": {
+      "maxDuration": 60
     }
   }
 }

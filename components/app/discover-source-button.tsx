@@ -26,7 +26,7 @@ export function DiscoverSourceButton({
     setLoading(false);
     setMessage(
       result.ok
-        ? (successLabel ?? `Imported ${result.count ?? 0} records.${result.warning ? ` ${result.warning}` : ""}`)
+        ? `${successLabel ?? `Imported ${result.count ?? 0} records.`}${result.warning ? ` ${result.warning}` : ""}`
         : result.error ?? "Request failed",
     );
     if (result.ok) router.refresh();
