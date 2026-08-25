@@ -6,10 +6,24 @@ export function buildHeuristicAnalysis(input: {
   domain: string | null;
   company: string | null;
   page: WebsiteEvidence;
+  listing?: {
+    title?: string | null;
+    source?: string | null;
+    location?: string | null;
+    industry?: string | null;
+    estimatedNeed?: string | null;
+    sourceUrl?: string | null;
+  };
 }) {
   const page = input.page;
+  const listing = input.listing;
   const technical: Finding[] = [];
   const business: Finding[] = [];
+  const isListing =
+    listing?.source === "job" ||
+    listing?.source === "problem_post" ||
+    listing?.source === "adzuna" ||
+    listing?.source === "manual";
 
   if (page.https != null) {
     technical.push({
@@ -31,7 +45,7 @@ export function buildHeuristicAnalysis(input: {
       label: "detected",
       evidence: page.technologies.join(", "),
     });
-  } else {
+  } else if (page.fetched) {
     technical.push({
       title: "Technology",
       label: "unable_to_determine",
@@ -65,12 +79,49 @@ export function buildHeuristicAnalysis(input: {
       evidence: "Captured HTML did not include a meta description.",
     });
   }
+  if (!page.fetched) {
+    technical.push({
+      title: "Company website",
+      label: "unable_to_determine",
+      evidence: isListing
+        ? "This record is a listing, not a captured company homepage. Stack and SEO checks were not run."
+        : "No live HTML or urlscan snapshot was available.",
+    });
+  }
 
   if (page.ogSiteName || input.company) {
     business.push({
       title: "Brand / company",
       label: "detected",
       evidence: page.ogSiteName || input.company || "",
+    });
+  }
+  if (listing?.title) {
+    business.push({
+      title: listing.source === "job" || listing.source === "adzuna" ? "Role / listing" : "Listing title",
+      label: "detected",
+      evidence: listing.title,
+    });
+  }
+  if (listing?.industry) {
+    business.push({
+      title: "Industry",
+      label: "detected",
+      evidence: listing.industry,
+    });
+  }
+  if (listing?.location || page.city || page.country) {
+    business.push({
+      title: "Location",
+      label: "detected",
+      evidence: listing?.location || [page.city, page.country].filter(Boolean).join(", "),
+    });
+  }
+  if (listing?.estimatedNeed) {
+    business.push({
+      title: "Public listing copy",
+      label: "detected",
+      evidence: listing.estimatedNeed.slice(0, 400),
     });
   }
   if (page.textSnippet) {
@@ -87,13 +138,6 @@ export function buildHeuristicAnalysis(input: {
       evidence: page.isEcommerce
         ? `Cart/product markers or ecommerce platform (${page.platform ?? "unknown"}) were present.`
         : "No ecommerce markers were found in the captured HTML.",
-    });
-  }
-  if (page.country || page.city) {
-    business.push({
-      title: "Location",
-      label: "detected",
-      evidence: [page.city, page.country].filter(Boolean).join(", "),
     });
   }
   if (page.jsonLdTypes.length) {
@@ -117,13 +161,14 @@ export function buildHeuristicAnalysis(input: {
   const businessType =
     page.jsonLdTypes.find((item) => /organization|localbusiness|store|product/i.test(item)) ||
     page.platform ||
+    (listing?.source === "job" || listing?.source === "adzuna" ? "Hiring / job listing" : null) ||
     (page.ogSiteName ? "Website / online business" : null);
 
   return {
     overview: {
       businessType: businessType ?? "Unable to determine",
-      industry: "Unable to determine",
-      label: page.fetched ? (businessType ? "detected" : "possible") : "unable_to_determine",
+      industry: listing?.industry ?? "Unable to determine",
+      label: page.fetched || input.company || listing?.title ? "detected" : "unable_to_determine",
     },
     technical: technical.length
       ? technical
@@ -132,11 +177,13 @@ export function buildHeuristicAnalysis(input: {
       ? business
       : [{ title: "Business profile", label: "unable_to_determine" as const, evidence: "No public business copy was captured." }],
     painPoints,
-    score: page.fetched ? 45 : 10,
+    score: page.fetched ? 45 : listing?.title ? 30 : 10,
     scoreExplanation: page.fetched
       ? "Baseline score from captured public page evidence only. Not a guaranteed outcome."
-      : "Little public page evidence was captured, so the score stays low.",
-    estimatedNeed: "Unable to determine",
+      : listing?.title
+        ? "Score from listing details only. A company website was not captured."
+        : "Little public page evidence was captured, so the score stays low.",
+    estimatedNeed: listing?.estimatedNeed ?? "Unable to determine",
     matchingService: "Unable to determine",
   };
 }

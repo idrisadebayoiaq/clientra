@@ -269,6 +269,12 @@ function emptyEvidence(): WebsiteEvidence {
   };
 }
 
+export function emptyWebsiteEvidence(notes: string[] = []): WebsiteEvidence {
+  const fallback = emptyEvidence();
+  fallback.notes = notes;
+  return fallback;
+}
+
 function homepageScore(hit: UrlscanHit, domain: string) {
   const raw = hit.page?.url ?? hit.task?.url ?? "";
   try {

@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { analyzeWebsite } from "@/lib/ai";
-import { collectWebsiteEvidence } from "@/lib/analysis/collect-evidence";
+import { collectWebsiteEvidence, emptyWebsiteEvidence } from "@/lib/analysis/collect-evidence";
 import { buildHeuristicAnalysis } from "@/lib/analysis/from-evidence";
 import { parseJsonFromModel } from "@/lib/ai/json";
 import { getModel } from "@/lib/ai/client";
 import { isOpenRouterConfigured } from "@/lib/env";
+import { shouldPersistWebsite } from "@/lib/opportunities/domains";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 
@@ -73,20 +74,28 @@ export async function runAnalysis(targetId: string) {
 
     const url = website?.url ?? opportunity?.source_url ?? (website?.domain ? `https://${website.domain}` : null);
     const domain = website?.domain ?? opportunity?.domain ?? null;
-    const page = await collectWebsiteEvidence({
-      url,
-      domain,
-      urlscanUuid: opportunity?.source === "website_discovery" ? opportunity.source_id : null,
-    });
+    const canScanSite = shouldPersistWebsite(domain);
+    const page = canScanSite
+      ? await collectWebsiteEvidence({
+          url,
+          domain,
+          urlscanUuid: opportunity?.source === "website_discovery" ? opportunity.source_id : null,
+        })
+      : emptyWebsiteEvidence([
+          opportunity?.source === "job"
+            ? "This is a hiring ad, not a company website. No public company domain was stored to scan."
+            : "No public company domain was stored, so live page capture was skipped.",
+        ]);
 
     const evidence = {
       domain,
-      url: page.finalUrl ?? url,
+      url: page.finalUrl ?? (canScanSite ? url : null),
       storedTitle: website?.title ?? opportunity?.title ?? null,
       company: website?.business_name ?? opportunity?.company_name ?? page.ogSiteName ?? null,
       storedIndustry: website?.industry ?? opportunity?.industry ?? null,
       storedLocation: website?.location ?? opportunity?.location ?? null,
       estimatedNeed: opportunity?.estimated_need ?? null,
+      source: opportunity?.source ?? null,
       page,
     };
 
@@ -94,13 +103,27 @@ export async function runAnalysis(targetId: string) {
       domain,
       company: evidence.company,
       page,
+      listing: {
+        title: opportunity?.title ?? null,
+        source: opportunity?.source ?? null,
+        location: opportunity?.location ?? website?.location ?? null,
+        industry: opportunity?.industry ?? website?.industry ?? null,
+        estimatedNeed: opportunity?.estimated_need ?? null,
+        sourceUrl: opportunity?.source_url ?? url,
+      },
     });
 
     let parsed = heuristic;
     let modelUsed = "heuristic";
     let aiWarning: string | undefined;
 
-    if (!isOpenRouterConfigured()) {
+    if (!page.fetched) {
+      aiWarning = canScanSite
+        ? undefined
+        : opportunity?.source === "job"
+          ? "This is a hiring ad. Findings come from the listing because no company website was stored."
+          : "No public company domain was stored, so live page capture was skipped.";
+    } else if (!isOpenRouterConfigured()) {
       aiWarning = "OpenRouter is not configured. Showing captured page evidence only.";
     } else {
       const prompt = `Return JSON only with this shape:
@@ -135,8 +158,15 @@ ${JSON.stringify(evidence)}`;
       ...(typeof parsed.overview === "object" && parsed.overview
         ? (parsed.overview as Record<string, unknown>)
         : { summary: heuristic.overview.businessType }),
-      evidenceSource: page.source,
-      evidenceTitle: page.title,
+      evidenceSource:
+        page.source !== "none"
+          ? page.source
+          : opportunity?.source === "job" ||
+              opportunity?.source === "problem_post" ||
+              opportunity?.source === "adzuna"
+            ? "listing"
+            : page.source,
+      evidenceTitle: page.title ?? opportunity?.title,
       evidenceUrl: page.finalUrl,
       evidenceNotes: page.notes,
     } as Json;
@@ -149,7 +179,7 @@ ${JSON.stringify(evidence)}`;
     let websiteId = website?.id ?? opportunity?.website_id ?? null;
     const location =
       [page.city, page.country].filter(Boolean).join(", ") || website?.location || opportunity?.location || null;
-    if (!websiteId && domain) {
+    if (!websiteId && shouldPersistWebsite(domain) && domain) {
       const { data: created } = await supabase
         .from("websites")
         .upsert(
@@ -296,7 +326,9 @@ ${JSON.stringify(evidence)}`;
     revalidatePath("/dashboard");
 
     const warnings = [
-      page.fetched ? null : "The live page could not be read. Findings stay limited to public scan data.",
+      canScanSite && !page.fetched
+        ? "The live page could not be read. Findings stay limited to public scan data."
+        : null,
       aiWarning ?? null,
     ].filter(Boolean);
     return {
