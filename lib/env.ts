@@ -11,7 +11,7 @@ function required(name: string, value: string | undefined): string {
   return normalized;
 }
 
-export const PRODUCTION_APP_URL = "https://clientra-xi.vercel.app";
+export const PRODUCTION_APP_URL = "https://clientra-xi-rouge.vercel.app";
 export const GMAIL_REDIRECT_URI = `${PRODUCTION_APP_URL}/api/auth/google/callback`;
 
 function defaultAppUrl() {

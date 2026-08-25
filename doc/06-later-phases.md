@@ -22,7 +22,7 @@ Required env names: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT
 
 Manual Google Cloud setup still required:
 
-1. Authorized redirect `https://clientra-xi.vercel.app/api/auth/google/callback` only (do not use localhost for Gmail)
+1. Authorized redirect `https://clientra-xi-rouge.vercel.app/api/auth/google/callback` only (do not use localhost for Gmail)
 2. Gmail API enabled
 3. Pub/Sub topic/subscription if using push notifications
 

@@ -29,7 +29,7 @@ Required for the app and auth:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_APP_URL` — production origin, e.g. `https://clientra-xi.vercel.app`
+- `NEXT_PUBLIC_APP_URL` — production origin, e.g. `https://clientra-xi-rouge.vercel.app`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
 Required for AI, discovery, and Gmail:
@@ -41,7 +41,7 @@ Required for AI, discovery, and Gmail:
 - `ADZUNA_APP_KEY`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REDIRECT_URI` — `https://clientra-xi.vercel.app/api/auth/google/callback`
+- `GOOGLE_REDIRECT_URI` — `https://clientra-xi-rouge.vercel.app/api/auth/google/callback`
 - `GOOGLE_REDIRECT_URI_PRODUCTION` — same production callback
 
 Recommended:
@@ -54,7 +54,7 @@ Recommended:
 - `GOOGLE_PUBSUB_TOPIC`
 - `GOOGLE_PUBSUB_SUBSCRIPTION`
 
-Never put server secrets in `NEXT_PUBLIC_*`. After the first Vercel URL exists, also add `https://clientra-xi.vercel.app/auth/callback` to Supabase Auth redirect URLs, and the Gmail callback `https://clientra-xi.vercel.app/api/auth/google/callback` to Google Cloud OAuth. Do not use localhost for Gmail connect.
+Never put server secrets in `NEXT_PUBLIC_*`. After the first Vercel URL exists, also add `https://clientra-xi-rouge.vercel.app/auth/callback` to Supabase Auth redirect URLs, and the Gmail callback `https://clientra-xi-rouge.vercel.app/api/auth/google/callback` to Google Cloud OAuth. Do not use localhost for Gmail connect.
 
 ## Docs
 

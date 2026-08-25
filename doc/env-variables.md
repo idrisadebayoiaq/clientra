@@ -32,7 +32,7 @@ These are **not** the Supabase Auth Google callback.
 
 Gmail callback (production only, not localhost):
 
-- `https://clientra-xi.vercel.app/api/auth/google/callback`
+- `https://clientra-xi-rouge.vercel.app/api/auth/google/callback`
 
 Supabase Auth Google callback (login only, do not reuse for Gmail):
 
@@ -40,7 +40,7 @@ Supabase Auth Google callback (login only, do not reuse for Gmail):
 
 Also add to Google authorized JavaScript origins:
 
-- `https://clientra-xi.vercel.app`
+- `https://clientra-xi-rouge.vercel.app`
 
 ## Google Pub/Sub (server)
 
@@ -74,9 +74,9 @@ On Vercel, `NEXT_PUBLIC_APP_URL` and `GOOGLE_REDIRECT_URI` must be the deployed 
 
 Example production values (not secrets):
 
-- `NEXT_PUBLIC_APP_URL=https://clientra-xi.vercel.app`
-- `GOOGLE_REDIRECT_URI=https://clientra-xi.vercel.app/api/auth/google/callback`
-- `GOOGLE_REDIRECT_URI_PRODUCTION=https://clientra-xi.vercel.app/api/auth/google/callback`
+- `NEXT_PUBLIC_APP_URL=https://clientra-xi-rouge.vercel.app`
+- `GOOGLE_REDIRECT_URI=https://clientra-xi-rouge.vercel.app/api/auth/google/callback`
+- `GOOGLE_REDIRECT_URI_PRODUCTION=https://clientra-xi-rouge.vercel.app/api/auth/google/callback`
 
 ## Supabase (database + Auth only)
 
@@ -84,13 +84,13 @@ This project does not deploy or call Supabase Edge Functions. Tables, RLS, and A
 
 In the Supabase dashboard, only Auth URLs need to match production:
 
-- Site URL: `https://clientra-xi.vercel.app`
-- Redirect URLs: `https://clientra-xi.vercel.app/auth/callback`
+- Site URL: `https://clientra-xi-rouge.vercel.app`
+- Redirect URLs: `https://clientra-xi-rouge.vercel.app/auth/callback`
 
 Also in Google Cloud OAuth:
 
-- Authorized JavaScript origin: `https://clientra-xi.vercel.app`
-- Authorized redirect URI: `https://clientra-xi.vercel.app/api/auth/google/callback`
+- Authorized JavaScript origin: `https://clientra-xi-rouge.vercel.app`
+- Authorized redirect URI: `https://clientra-xi-rouge.vercel.app/api/auth/google/callback`
 
 ## Never expose to the browser
 
