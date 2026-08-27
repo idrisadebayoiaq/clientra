@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FinalCta, MarketingHero, MarketingSection } from "@/components/marketing/blocks";
+import { MarketingAuthCta } from "@/components/marketing/auth-cta";
 import { ButtonLink, Card } from "@/components/ui/primitives";
 import { PLANS } from "@/lib/constants";
 import { FAQS } from "@/lib/marketing";
@@ -17,7 +18,7 @@ export default function PricingPage() {
         title="Start simple. Grow when the pipeline does."
         description="Plans are ready in the product. Payment processing is not enabled yet, so you can explore the workspace on Free while billing is wired."
       >
-        <ButtonLink href="/signup" size="lg">Create a free workspace</ButtonLink>
+        <MarketingAuthCta size="lg" signedOutLabel="Create a free workspace" signedInLabel="Open dashboard" />
       </MarketingHero>
       <MarketingSection title="Plans" eyebrow="Transparent">
         <div className="grid gap-4 lg:grid-cols-4">
@@ -31,9 +32,12 @@ export default function PricingPage() {
                   <li key={feature}>{feature}</li>
                 ))}
               </ul>
-              <ButtonLink href="/signup" className="mt-6 w-full" variant={"highlighted" in plan && plan.highlighted ? "primary" : "outline"}>
-                Get started
-              </ButtonLink>
+              <MarketingAuthCta
+                className="mt-6 w-full"
+                variant={"highlighted" in plan && plan.highlighted ? "primary" : "outline"}
+                signedOutLabel="Get started"
+                signedInLabel="Open dashboard"
+              />
             </Card>
           ))}
         </div>

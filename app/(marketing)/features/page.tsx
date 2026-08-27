@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FeatureGrid, FinalCta, MarketingHero, MarketingSection } from "@/components/marketing/blocks";
+import { MarketingAuthCta } from "@/components/marketing/auth-cta";
 import { Badge, ButtonLink, Card } from "@/components/ui/primitives";
 
 export const metadata: Metadata = {
@@ -16,7 +17,7 @@ export default function FeaturesPage() {
         description="Clientra combines discovery, analysis, authorized outreach, inbox classification, and a lightweight CRM. It is not a freelancer marketplace."
       >
         <div className="flex flex-wrap gap-3">
-          <ButtonLink href="/signup" size="lg">Start Finding Clients</ButtonLink>
+          <MarketingAuthCta size="lg" />
           <ButtonLink href="/how-it-works" size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10">
             See the loop
           </ButtonLink>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ButtonLink, Card, Badge } from "@/components/ui/primitives";
+import { MarketingAuthCta } from "@/components/marketing/auth-cta";
 import { FeatureGrid, FinalCta, MarketingSection } from "@/components/marketing/blocks";
 import { FAQS } from "@/lib/marketing";
 import { PLANS } from "@/lib/constants";
@@ -31,9 +32,7 @@ export default function LandingPage() {
               client conversations.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <ButtonLink href="/signup" size="lg">
-                Start Finding Clients
-              </ButtonLink>
+              <MarketingAuthCta size="lg" />
               <ButtonLink href="/how-it-works" variant="outline" size="lg" className="border-white/20 bg-transparent text-white hover:bg-white/10">
                 See How It Works
               </ButtonLink>
@@ -231,9 +230,12 @@ export default function LandingPage() {
                   <li key={feature}>{feature}</li>
                 ))}
               </ul>
-              <ButtonLink href="/signup" className="mt-6 w-full" variant={"highlighted" in plan && plan.highlighted ? "primary" : "outline"}>
-                Get started
-              </ButtonLink>
+              <MarketingAuthCta
+                className="mt-6 w-full"
+                variant={"highlighted" in plan && plan.highlighted ? "primary" : "outline"}
+                signedOutLabel="Get started"
+                signedInLabel="Open dashboard"
+              />
             </Card>
           ))}
         </div>

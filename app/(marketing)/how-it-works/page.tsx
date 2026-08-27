@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FinalCta, MarketingHero, MarketingSection } from "@/components/marketing/blocks";
+import { MarketingAuthCta } from "@/components/marketing/auth-cta";
 import { ButtonLink, Card } from "@/components/ui/primitives";
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export default function HowItWorksPage() {
         title="A repeatable loop, not a job board."
         description="Clientra is built for specialists who already know what they sell and want a better way to find people with that problem."
       >
-        <ButtonLink href="/signup" size="lg">Start Finding Clients</ButtonLink>
+        <MarketingAuthCta size="lg" />
       </MarketingHero>
       <MarketingSection title="The six steps" eyebrow="From signup to won">
         <div className="grid gap-4 md:grid-cols-2">

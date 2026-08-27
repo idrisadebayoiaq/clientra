@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { FeatureGrid, FinalCta, MarketingHero, MarketingSection } from "@/components/marketing/blocks";
+import { MarketingAuthCta } from "@/components/marketing/auth-cta";
 import { ButtonLink, Card } from "@/components/ui/primitives";
 
 export const metadata: Metadata = {
@@ -34,7 +35,7 @@ export default function UseCasesPage() {
         title="Built for people who already sell a service."
         description="Clientra helps specialists find businesses and public requests that match the work they already do."
       >
-        <ButtonLink href="/signup" size="lg">Start Finding Clients</ButtonLink>
+        <MarketingAuthCta size="lg" />
       </MarketingHero>
       <MarketingSection title="Who it is for" eyebrow="Specialists">
         <FeatureGrid

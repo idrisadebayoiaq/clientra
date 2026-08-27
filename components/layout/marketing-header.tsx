@@ -6,7 +6,7 @@ import { Menu, X } from "lucide-react";
 import { MARKETING_NAV } from "@/lib/constants";
 import { ButtonLink } from "@/components/ui/primitives";
 
-export function MarketingHeader() {
+export function MarketingHeader({ authenticated = false }: { authenticated?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -24,12 +24,25 @@ export function MarketingHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <ButtonLink href="/login" variant="ghost" size="sm" className="hidden sm:inline-flex">
-            Log in
-          </ButtonLink>
-          <ButtonLink href="/signup" size="sm">
-            Start Finding Clients
-          </ButtonLink>
+          {authenticated ? (
+            <>
+              <ButtonLink href="/dashboard" variant="ghost" size="sm" className="hidden sm:inline-flex">
+                Dashboard
+              </ButtonLink>
+              <ButtonLink href="/discover" size="sm">
+                Open app
+              </ButtonLink>
+            </>
+          ) : (
+            <>
+              <ButtonLink href="/login" variant="ghost" size="sm" className="hidden sm:inline-flex">
+                Log in
+              </ButtonLink>
+              <ButtonLink href="/signup" size="sm">
+                Start Finding Clients
+              </ButtonLink>
+            </>
+          )}
           <button
             type="button"
             className="rounded-lg p-2 lg:hidden"
@@ -48,9 +61,20 @@ export function MarketingHeader() {
                 {item.label}
               </Link>
             ))}
-            <Link href="/login" onClick={() => setOpen(false)}>
-              Log in
-            </Link>
+            {authenticated ? (
+              <>
+                <Link href="/dashboard" onClick={() => setOpen(false)}>
+                  Dashboard
+                </Link>
+                <Link href="/discover" onClick={() => setOpen(false)}>
+                  Open app
+                </Link>
+              </>
+            ) : (
+              <Link href="/login" onClick={() => setOpen(false)}>
+                Log in
+              </Link>
+            )}
           </nav>
         </div>
       ) : null}

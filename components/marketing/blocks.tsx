@@ -1,4 +1,5 @@
 import { ButtonLink, Card } from "@/components/ui/primitives";
+import { MarketingAuthCta } from "@/components/marketing/auth-cta";
 import type { ReactNode } from "react";
 
 export function MarketingHero({
@@ -61,15 +62,13 @@ export function FeatureGrid({
   );
 }
 
-export function FinalCta({ title }: { title: string }) {
+export async function FinalCta({ title }: { title: string }) {
   return (
     <section className="bg-ink text-white">
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <h2 className="font-display max-w-3xl text-3xl sm:text-4xl">{title}</h2>
         <div className="mt-6 flex flex-wrap gap-3">
-          <ButtonLink href="/signup" size="lg">
-            Start Finding Clients
-          </ButtonLink>
+          <MarketingAuthCta size="lg" />
           <ButtonLink href="/pricing" size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10">
             View pricing
           </ButtonLink>
