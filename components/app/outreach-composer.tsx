@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Label, Select, Textarea, Input } from "@/components/ui/primitives";
 import { generateOutreachDraft, sendOutreachEmail } from "@/app/(app)/outreach/actions";
 import { ContactDetails, type ContactSummary } from "@/components/app/contact-details";
@@ -8,6 +8,7 @@ import { parseSocialNotes } from "@/lib/opportunities/public-contact";
 
 export function OutreachComposer({
   opportunityId,
+  resetKey,
   defaultContext,
   defaultTo,
   defaultSubject,
@@ -18,6 +19,7 @@ export function OutreachComposer({
   gmailReady,
 }: {
   opportunityId?: string;
+  resetKey?: string;
   defaultContext?: string;
   defaultTo?: string;
   defaultSubject?: string;
@@ -36,6 +38,16 @@ export function OutreachComposer({
   const [body, setBody] = useState(defaultBody ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setChannel(defaultChannel ?? (defaultTo ? "email" : social.linkedinUrl ? "linkedin" : "email"));
+    setContext(defaultContext ?? "");
+    setTo(defaultTo ?? "");
+    setSignAs(senderName ?? "");
+    setSubject(defaultSubject ?? "");
+    setBody(defaultBody ?? "");
+    setMessage(null);
+  }, [resetKey, defaultChannel, defaultContext, defaultTo, defaultSubject, defaultBody, senderName, social.linkedinUrl]);
 
   async function generate() {
     setLoading(true);

@@ -53,7 +53,7 @@ export async function importWebsiteForAnalysis(rawUrl: string) {
     {
       user_id: user.id,
       website_id: website.id,
-      title: `Analyze ${domain}`,
+      title: domain,
       company_name: domain,
       source: "manual",
       source_url: url,

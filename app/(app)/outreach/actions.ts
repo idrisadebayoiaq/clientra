@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { sendGmailMessage } from "@/lib/gmail/send";
 import { composeOutreachMessage, resolveSenderName } from "@/lib/outreach/compose";
-import { enrichOpportunityContact } from "@/lib/outreach/workspace";
+import { clearOpportunityDrafts, enrichOpportunityContact } from "@/lib/outreach/workspace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export async function generateOutreachDraft(formData: FormData) {
@@ -19,22 +19,41 @@ export async function generateOutreachDraft(formData: FormData) {
   const extra = String(formData.get("context") ?? "").trim();
   const requestedName = String(formData.get("senderName") ?? "").trim();
 
-  const [{ data: opportunity }, { data: profile }, { data: services }, { data: existingContact }] = await Promise.all([
+  const [{ data: opportunity }, { data: profile }, { data: services }] = await Promise.all([
     opportunityId
       ? supabase.from("opportunities").select("*").eq("id", opportunityId).maybeSingle()
       : Promise.resolve({ data: null }),
     supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
     supabase.from("user_services").select("custom_label, service_key").eq("user_id", user.id),
-    opportunityId
-      ? supabase.from("contacts").select("*").eq("opportunity_id", opportunityId).order("created_at", { ascending: false }).limit(1).maybeSingle()
-      : Promise.resolve({ data: null }),
   ]);
+
+  const { data: existingContact } = opportunity?.website_id
+    ? await supabase
+        .from("contacts")
+        .select("*")
+        .eq("website_id", opportunity.website_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : opportunity
+      ? await supabase
+          .from("contacts")
+          .select("*")
+          .eq("opportunity_id", opportunity.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
 
   const contact = opportunity
     ? await enrichOpportunityContact(supabase, user.id, opportunity, existingContact)
     : null;
   const senderName = requestedName || resolveSenderName(profile, user);
   const serviceLabels = (services ?? []).map((row) => row.custom_label || row.service_key.replace(/_/g, " "));
+
+  if (opportunity?.id) {
+    await clearOpportunityDrafts(supabase, opportunity.id);
+  }
 
   const { subject, body } = await composeOutreachMessage({
     channel,
@@ -99,6 +118,7 @@ export async function sendOutreachEmail(formData: FormData) {
   });
 
   if (opportunityId) {
+    await clearOpportunityDrafts(supabase, opportunityId);
     await supabase.from("opportunities").update({ status: "contacted" }).eq("id", opportunityId);
     const { data: opportunity } = await supabase
       .from("opportunities")

@@ -147,9 +147,26 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     opportunity?.title ??
     "Website";
   const overview = analysis?.overview ?? null;
-  const technology = website?.technology?.length ? website.technology.join(", ") : "Unable to determine";
-  const businessType = website?.business_type ?? overview?.businessType ?? "Unable to determine";
-  const industry = website?.industry ?? opportunity?.industry ?? overview?.industry ?? "Unable to determine";
+  const technology =
+    website?.technology?.length
+      ? website.technology.join(", ")
+      : Array.isArray(analysis?.technical)
+        ? analysis.technical
+            .map((item) => (item as { title?: string; evidence?: string }).evidence)
+            .filter(Boolean)
+            .join(", ") || "Unable to determine"
+        : "Unable to determine";
+  const businessType =
+    website?.business_type ??
+    overview?.businessType ??
+    (overview as { businessType?: string } | null)?.businessType ??
+    "Unable to determine";
+  const industry =
+    website?.industry ??
+    opportunity?.industry ??
+    overview?.industry ??
+    "Unable to determine";
+  const displayTitle = website?.title ?? overview?.evidenceTitle ?? opportunity?.title ?? "Unable to determine";
   const evidenceLabel =
     overview?.evidenceSource === "html+urlscan"
       ? "Live page + urlscan"
@@ -163,9 +180,9 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
               ? "Saved analysis"
               : null;
   const composeHref = opportunityId
-    ? `/outreach?opportunity=${opportunityId}`
+    ? `/outreach?opportunity=${opportunityId}&refresh=1`
     : websiteId
-      ? `/outreach?website=${websiteId}`
+      ? `/outreach?website=${websiteId}&refresh=1`
       : "/outreach";
   const contactKey = `${websiteId ?? "none"}:${opportunityId ?? "none"}`;
 
@@ -221,7 +238,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
           )}
           <dl className="mt-3 space-y-2 text-sm">
             <Row label="Domain" value={website?.domain ?? opportunity?.domain ?? "Unable to determine"} />
-            <Row label="Title" value={website?.title ?? opportunity?.title ?? "Unable to determine"} />
+            <Row label="Title" value={displayTitle} />
             <Row label="Business type" value={businessType} />
             <Row label="Industry" value={industry} />
             <Row label="Location" value={website?.location ?? opportunity?.location ?? "Unable to determine"} />

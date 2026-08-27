@@ -14,8 +14,9 @@ import {
   mergeContacts,
   type ExtractedContact,
 } from "@/lib/opportunities/public-contact";
-import { getAuthenticatedUser } from "@/lib/supabase/server";
 import { saveScannedContact } from "@/lib/contacts/workspace-contact";
+import { clearOpportunityDrafts } from "@/lib/outreach/workspace";
+import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Json } from "@/types/database";
 
 function asOverview(value: unknown) {
@@ -128,7 +129,9 @@ export async function runAnalysis(targetId: string) {
       page.fetched ||
       Boolean(page.title || page.textSnippet || page.technologies.length || page.headings.length || page.metaDescription);
     const hasListingEvidence = Boolean(
-      opportunity?.estimated_need || opportunity?.title || opportunity?.company_name,
+      (opportunity?.estimated_need && opportunity.estimated_need !== "Unable to determine") ||
+        (opportunity?.title && !/^analyze\s+/i.test(opportunity.title)) ||
+        (opportunity?.company_name && opportunity.company_name !== opportunity?.domain),
     );
 
     if (!hasPageEvidence && !hasListingEvidence) {
@@ -190,6 +193,9 @@ ${JSON.stringify(evidence)}`;
       typeof parsed.score === "number" ? Math.max(0, Math.min(100, parsed.score)) : (opportunity?.opportunity_score ?? null);
     const usableOverview = overviewFields?.label === "detected" || overviewFields?.label === "possible";
 
+    const resolvedCompany =
+      page.ogSiteName ?? page.title ?? website?.business_name ?? opportunity?.company_name ?? domain;
+
     let websiteId = website?.id ?? opportunity?.website_id ?? null;
     const location =
       [page.city, page.country].filter(Boolean).join(", ") || website?.location || opportunity?.location || null;
@@ -221,9 +227,12 @@ ${JSON.stringify(evidence)}`;
         .update({
           url: page.finalUrl ?? url ?? website?.url,
           title: page.title ?? website?.title ?? null,
-          business_name: page.ogSiteName ?? website?.business_name ?? opportunity?.company_name ?? domain,
+          business_name: resolvedCompany ?? website?.business_name ?? opportunity?.company_name ?? domain,
           business_type: usableOverview ? overviewFields?.businessType : website?.business_type,
-          industry: usableOverview ? overviewFields?.industry : website?.industry,
+          industry:
+            usableOverview && overviewFields?.industry && overviewFields.industry !== "Unable to determine"
+              ? overviewFields.industry
+              : website?.industry,
           location,
           country: page.country ?? website?.country ?? null,
           technology: page.technologies,
@@ -349,13 +358,23 @@ ${JSON.stringify(evidence)}`;
     }
 
     if (opportunity) {
+      await clearOpportunityDrafts(supabase, opportunity.id);
       await supabase
         .from("opportunities")
         .update({
           status: "analyzed",
+          title: page.title ?? opportunity.title,
+          company_name: resolvedCompany,
           website_id: websiteId ?? opportunity.website_id,
+          industry:
+            usableOverview && overviewFields?.industry && overviewFields.industry !== "Unable to determine"
+              ? overviewFields.industry
+              : opportunity.industry,
           opportunity_score: score,
-          estimated_need: typeof parsed.estimatedNeed === "string" ? parsed.estimatedNeed : opportunity.estimated_need,
+          estimated_need:
+            typeof parsed.estimatedNeed === "string" && parsed.estimatedNeed !== "Unable to determine"
+              ? parsed.estimatedNeed
+              : opportunity.estimated_need,
           matching_service:
             typeof parsed.matchingService === "string" ? parsed.matchingService : opportunity.matching_service,
           score_explanation: {
@@ -368,6 +387,7 @@ ${JSON.stringify(evidence)}`;
         .eq("id", opportunity.id);
     }
 
+    revalidatePath("/outreach");
     revalidatePath("/analyze");
     revalidatePath(`/analyze/${targetId}`);
     if (websiteId) revalidatePath(`/analyze/${websiteId}`);

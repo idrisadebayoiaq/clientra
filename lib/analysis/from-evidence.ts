@@ -2,6 +2,31 @@ import type { WebsiteEvidence } from "@/lib/analysis/collect-evidence";
 
 type Finding = { title: string; label: "detected" | "possible" | "unable_to_determine"; evidence: string };
 
+function inferIndustry(page: WebsiteEvidence) {
+  const types = page.jsonLdTypes.join(" ").toLowerCase();
+  const text = [page.title, page.metaDescription, page.textSnippet, page.ogSiteName, ...page.headings]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (/bakery|pastry|baker|patisserie/.test(text) || /bakery|pastry|foodestablishment|restaurant/.test(types)) {
+    return "Food & bakery";
+  }
+  if (/restaurant|cafe|coffee|catering/.test(text) || /restaurant|foodestablishment/.test(types)) {
+    return "Food & hospitality";
+  }
+  if (/ecommerce|shopify|woocommerce|store|retail/.test(text) || /store|product/.test(types) || page.isEcommerce) {
+    return "Retail / ecommerce";
+  }
+  if (/agency|marketing|seo|design studio/.test(text)) return "Professional services";
+  if (/software|saas|developer|app/.test(text)) return "Technology";
+  if (/health|clinic|dental|medical/.test(text)) return "Healthcare";
+  if (/law|legal|attorney/.test(text)) return "Legal services";
+  if (/real estate|property|realtor/.test(text)) return "Real estate";
+  if (page.platform === "Squarespace" && /portfolio|photography|creative/.test(text)) return "Creative services";
+  return "Unable to determine";
+}
+
 export function buildHeuristicAnalysis(input: {
   domain: string | null;
   company: string | null;
@@ -23,7 +48,7 @@ export function buildHeuristicAnalysis(input: {
     listing?.source === "job" ||
     listing?.source === "problem_post" ||
     listing?.source === "adzuna" ||
-    listing?.source === "manual";
+    (listing?.source === "manual" && listing?.title && !/^analyze\s+/i.test(listing.title));
 
   if (page.https != null) {
     technical.push({
@@ -96,9 +121,15 @@ export function buildHeuristicAnalysis(input: {
       evidence: page.ogSiteName || input.company || "",
     });
   }
-  if (listing?.title) {
+  if (listing?.title && listing.source !== "manual") {
     business.push({
       title: listing.source === "job" || listing.source === "adzuna" ? "Role / listing" : "Listing title",
+      label: "detected",
+      evidence: listing.title,
+    });
+  } else if (listing?.title && listing.source === "manual" && !/^analyze\s+/i.test(listing.title)) {
+    business.push({
+      title: "Listing title",
       label: "detected",
       evidence: listing.title,
     });
@@ -158,8 +189,9 @@ export function buildHeuristicAnalysis(input: {
     });
   }
 
+  const inferredIndustry = inferIndustry(page);
   const businessType =
-    page.jsonLdTypes.find((item) => /organization|localbusiness|store|product/i.test(item)) ||
+    page.jsonLdTypes.find((item) => /organization|localbusiness|store|product|restaurant|bakery|food/i.test(item)) ||
     page.platform ||
     (listing?.source === "job" || listing?.source === "adzuna" ? "Hiring / job listing" : null) ||
     (page.ogSiteName ? "Website / online business" : null);
@@ -167,7 +199,7 @@ export function buildHeuristicAnalysis(input: {
   return {
     overview: {
       businessType: businessType ?? "Unable to determine",
-      industry: listing?.industry ?? "Unable to determine",
+      industry: listing?.industry && listing.industry !== "Unable to determine" ? listing.industry : inferredIndustry,
       label: page.fetched || input.company || listing?.title ? "detected" : "unable_to_determine",
     },
     technical: technical.length

@@ -1,3 +1,8 @@
+import { composeOutreachMessage, resolveSenderName } from "@/lib/outreach/compose";
+import { draftMatchesTarget, resolveTargetCompanyName } from "@/lib/outreach/draft-helpers";
+import type { createClient } from "@/lib/supabase/server";
+import type { User } from "@supabase/supabase-js";
+import type { Tables } from "@/types/database";
 import { isOpenRouterConfigured } from "@/lib/env";
 import {
   discoverApolloPersonContact,
@@ -9,10 +14,6 @@ import {
   socialNotes,
   type ExtractedContact,
 } from "@/lib/opportunities/public-contact";
-import { composeOutreachMessage, resolveSenderName } from "@/lib/outreach/compose";
-import type { createClient } from "@/lib/supabase/server";
-import type { User } from "@supabase/supabase-js";
-import type { Tables } from "@/types/database";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -28,6 +29,31 @@ function contactFromRow(row: Tables<"contacts"> | null): ExtractedContact {
     fullName: row?.full_name ?? null,
     businessName: row?.business_name ?? null,
   };
+}
+
+async function loadTargetContactRow(supabase: ServerClient, opportunity: Tables<"opportunities">) {
+  if (opportunity.website_id) {
+    const { data } = await supabase
+      .from("contacts")
+      .select("*")
+      .eq("website_id", opportunity.website_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return { data };
+  }
+  const { data } = await supabase
+    .from("contacts")
+    .select("*")
+    .eq("opportunity_id", opportunity.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return { data };
+}
+
+export async function clearOpportunityDrafts(supabase: ServerClient, opportunityId: string) {
+  await supabase.from("outreach_messages").delete().eq("opportunity_id", opportunityId).eq("status", "draft");
 }
 
 export async function enrichOpportunityContact(
@@ -107,44 +133,34 @@ export async function prepareOutreachWorkspace(
   supabase: ServerClient,
   user: User,
   opportunity: Tables<"opportunities">,
+  options?: { forceRefresh?: boolean },
 ) {
-  const [{ data: existingContact }, { data: profile }, { data: services }, { data: draft }, { data: analysisRow }] =
+  const [{ data: website }, { data: existingContact }, { data: profile }, { data: services }, { data: draft }, { data: analysisRow }] =
     await Promise.all([
-    opportunity.website_id
-      ? supabase
-          .from("contacts")
-          .select("*")
-          .eq("website_id", opportunity.website_id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : supabase
-          .from("contacts")
-          .select("*")
-          .eq("opportunity_id", opportunity.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-    supabase.from("profiles").select("full_name, email, expertise_description").eq("id", user.id).maybeSingle(),
-    supabase.from("user_services").select("custom_label, service_key").eq("user_id", user.id),
-    supabase
-      .from("outreach_messages")
-      .select("id, subject, body")
-      .eq("opportunity_id", opportunity.id)
-      .eq("status", "draft")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    opportunity.website_id
-      ? supabase
-          .from("website_analyses")
-          .select("id, technical, business, overview")
-          .eq("website_id", opportunity.website_id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
+      opportunity.website_id
+        ? supabase.from("websites").select("business_name, title, domain").eq("id", opportunity.website_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+      loadTargetContactRow(supabase, opportunity),
+      supabase.from("profiles").select("full_name, email, expertise_description").eq("id", user.id).maybeSingle(),
+      supabase.from("user_services").select("custom_label, service_key").eq("user_id", user.id),
+      supabase
+        .from("outreach_messages")
+        .select("id, subject, body, created_at")
+        .eq("opportunity_id", opportunity.id)
+        .eq("status", "draft")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      opportunity.website_id
+        ? supabase
+            .from("website_analyses")
+            .select("id, technical, business, overview, created_at")
+            .eq("website_id", opportunity.website_id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
 
   const { data: painPoints } = analysisRow?.id
     ? await supabase
@@ -161,10 +177,12 @@ export async function prepareOutreachWorkspace(
         .limit(6);
 
   const contact = await enrichOpportunityContact(supabase, user.id, opportunity, existingContact);
+  const companyName = resolveTargetCompanyName({ website, opportunity, contact });
   const senderName = resolveSenderName(profile, user);
   const serviceLabels = (services ?? []).map((row) => row.custom_label || row.service_key.replace(/_/g, " "));
 
   const analysisSummary = [
+    `Company: ${companyName}`,
     analysisRow?.overview && typeof analysisRow.overview === "object"
       ? `Overview: ${JSON.stringify(analysisRow.overview)}`
       : null,
@@ -181,17 +199,42 @@ export async function prepareOutreachWorkspace(
     .filter(Boolean)
     .join("\n");
 
-  let subject = draft?.subject ?? "";
-  let body = draft?.body ?? "";
-  if ((!subject || !body) && isOpenRouterConfigured()) {
+  const opportunityForCompose = {
+    ...opportunity,
+    company_name: companyName,
+    title: website?.title ?? opportunity.title,
+    industry:
+      opportunity.industry && opportunity.industry !== "Unable to determine"
+        ? opportunity.industry
+        : typeof analysisRow?.overview === "object" && analysisRow.overview && "industry" in analysisRow.overview
+          ? String((analysisRow.overview as { industry?: string }).industry ?? "")
+          : opportunity.industry,
+  };
+
+  const draftIsFresh =
+    draft &&
+    draftMatchesTarget(draft, {
+      domain: opportunity.domain,
+      companyName,
+      contactEmail: contact.email,
+    }) &&
+    (!analysisRow?.created_at || new Date(draft.created_at) >= new Date(analysisRow.created_at));
+
+  let subject = draftIsFresh ? (draft?.subject ?? "") : "";
+  let body = draftIsFresh ? (draft?.body ?? "") : "";
+
+  if ((!subject || !body || options?.forceRefresh) && isOpenRouterConfigured()) {
+    if (draft && !draftIsFresh) {
+      await clearOpportunityDrafts(supabase, opportunity.id);
+    }
     try {
       const generated = await composeOutreachMessage({
         channel: contact.email ? "email" : contact.linkedinUrl ? "linkedin" : "email",
         senderName,
         senderEmail: profile?.email ?? user.email,
         services: serviceLabels,
-        opportunity,
-        contact,
+        opportunity: opportunityForCompose,
+        contact: { ...contact, businessName: contact.businessName ?? companyName },
         extra: analysisSummary || undefined,
       });
       subject = generated.subject;
@@ -206,9 +249,20 @@ export async function prepareOutreachWorkspace(
         service_offered: opportunity.matching_service,
       });
     } catch {
-      subject = subject || (opportunity.company_name ? `Quick idea for ${opportunity.company_name}` : "Introduction");
+      subject = subject || `Quick idea for ${companyName}`;
     }
+  } else if (!subject) {
+    subject = `Quick idea for ${companyName}`;
   }
 
-  return { contact, senderName, senderEmail: profile?.email ?? user.email ?? "", subject, body, analysisSummary };
+  return {
+    contact: { ...contact, businessName: contact.businessName ?? companyName },
+    senderName,
+    senderEmail: profile?.email ?? user.email ?? "",
+    subject,
+    body,
+    analysisSummary,
+    companyName,
+    resetKey: `${opportunity.id}:${opportunity.domain}:${contact.email ?? "none"}:${analysisRow?.created_at ?? "none"}`,
+  };
 }

@@ -6,14 +6,15 @@ import { isOpenRouterConfigured } from "@/lib/env";
 import { prepareOutreachWorkspace } from "@/lib/outreach/workspace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export default async function OutreachPage({
   searchParams,
 }: {
-  searchParams: Promise<{ opportunity?: string; website?: string }>;
+  searchParams: Promise<{ opportunity?: string; website?: string; refresh?: string }>;
 }) {
-  const { opportunity: opportunityId, website: websiteId } = await searchParams;
+  const { opportunity: opportunityId, website: websiteId, refresh } = await searchParams;
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return null;
 
@@ -34,11 +35,12 @@ export default async function OutreachPage({
     .eq("provider", "gmail")
     .maybeSingle();
 
-  const workspace = opportunity ? await prepareOutreachWorkspace(supabase, user, opportunity) : null;
+  const workspace = opportunity
+    ? await prepareOutreachWorkspace(supabase, user, opportunity, { forceRefresh: refresh === "1" })
+    : null;
   const configured = isOpenRouterConfigured();
   const context = [
-    opportunity?.title,
-    opportunity?.company_name,
+    workspace?.companyName ?? opportunity?.company_name,
     opportunity?.domain,
     opportunity?.estimated_need,
     opportunity?.matching_service,
@@ -64,7 +66,8 @@ export default async function OutreachPage({
           </p>
         ) : null}
         <OutreachComposer
-          key={opportunity?.id ?? websiteId ?? "blank"}
+          key={workspace?.resetKey ?? opportunity?.id ?? websiteId ?? "blank"}
+          resetKey={workspace?.resetKey ?? opportunity?.id ?? websiteId ?? "blank"}
           opportunityId={opportunity?.id}
           defaultContext={context}
           defaultTo={workspace?.contact.email ?? undefined}

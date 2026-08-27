@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { generateOutreach } from "@/lib/ai";
 import type { ExtractedContact } from "@/lib/opportunities/public-contact";
+import { resolveTargetCompanyName } from "@/lib/outreach/draft-helpers";
 
 export function resolveSenderName(
   profile: { full_name?: string | null; email?: string | null } | null,
@@ -40,7 +41,11 @@ export async function composeOutreachMessage(input: {
   contact: ExtractedContact | null;
   extra?: string;
 }) {
-  const recipientName = input.contact?.fullName || input.opportunity?.person_name || input.opportunity?.company_name || null;
+  const companyName = resolveTargetCompanyName({
+    opportunity: input.opportunity,
+    contact: input.contact,
+  });
+  const recipientName = input.contact?.fullName || input.opportunity?.person_name || companyName;
   const prompt = `Write a short personalized ${input.channel} message the user can send now.
 
 Rules:
@@ -48,6 +53,8 @@ Rules:
 - Never use placeholders such as "(Your name)", "[Your Name]", "Your name", or "Best regards, Name".
 - Do not invent contact names, emails, metrics, or technical issues.
 - If evidence is thin, keep the note general and honest.
+- Mention only this business: ${companyName}${input.opportunity?.domain ? ` (${input.opportunity.domain})` : ""}.
+- Do not mention any other company, website, or domain from earlier drafts.
 - Use the recipient's public name or company when available. Do not greet a specific person unless that name was provided.
 ${input.senderEmail ? `- The sender's email is ${input.senderEmail}. Do not put that in a To/recipient field.` : ""}
 
@@ -64,7 +71,7 @@ Opportunity:
 ${JSON.stringify(
   {
     title: input.opportunity?.title,
-    company: input.opportunity?.company_name,
+    company: companyName,
     domain: input.opportunity?.domain,
     need: input.opportunity?.estimated_need,
     industry: input.opportunity?.industry,
@@ -82,10 +89,6 @@ ${JSON.stringify(
     .replace(/\[Your name\]/gi, input.senderName)
     .replace(/Best regards,\s*(Your name|\[Your name\]|\(Your name\))/gi, `Best regards,\n${input.senderName}`)
     .trim();
-  const subject = input.opportunity?.company_name
-    ? `Quick idea for ${input.opportunity.company_name}`
-    : input.opportunity?.title
-      ? `Regarding ${input.opportunity.title}`
-      : "Introduction";
+  const subject = `Quick idea for ${companyName}`;
   return { subject, body: cleaned };
 }
