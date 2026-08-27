@@ -100,6 +100,14 @@ export async function sendOutreachEmail(formData: FormData) {
 
   if (opportunityId) {
     await supabase.from("opportunities").update({ status: "contacted" }).eq("id", opportunityId);
+    const { data: opportunity } = await supabase
+      .from("opportunities")
+      .select("website_id")
+      .eq("id", opportunityId)
+      .maybeSingle();
+    revalidatePath("/analyze");
+    if (opportunity?.website_id) revalidatePath(`/analyze/${opportunity.website_id}`);
+    revalidatePath(`/analyze/${opportunityId}`);
   }
 
   revalidatePath("/outreach");

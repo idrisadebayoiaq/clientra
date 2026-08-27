@@ -42,6 +42,7 @@ export default async function OutreachPage({
     opportunity?.domain,
     opportunity?.estimated_need,
     opportunity?.matching_service,
+    workspace?.analysisSummary,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -63,7 +64,7 @@ export default async function OutreachPage({
           </p>
         ) : null}
         <OutreachComposer
-          key={opportunity?.id ?? "blank"}
+          key={opportunity?.id ?? websiteId ?? "blank"}
           opportunityId={opportunity?.id}
           defaultContext={context}
           defaultTo={workspace?.contact.email ?? undefined}

@@ -14,16 +14,23 @@ export default async function JobsPage() {
     .from("opportunities")
     .select("*, contacts(email, phone, website, full_name, business_name, notes, verification_status)")
     .eq("source", "job")
+    .neq("status", "ignored")
+    .order("published_at", { ascending: false, nullsFirst: false })
     .order("discovered_at", { ascending: false })
     .limit(50);
 
   return (
     <AppPageShell
       title="Job Opportunities"
-      description="Recent hiring ads from Adzuna that may match the services you sell. Automatic sending is never implied."
+      description="Recent hiring ads from Adzuna that may match the services you sell. Clientra checks for new jobs about every 10 minutes while you use the app."
       actions={
         configured ? (
-          <DiscoverSourceButton action={discoverJobs} label="Discover recent jobs" pendingLabel="Searching…" />
+          <DiscoverSourceButton
+            action={discoverJobs}
+            label="Discover recent jobs"
+            pendingLabel="Searching…"
+            successLabel="Checked Adzuna — "
+          />
         ) : undefined
       }
     >

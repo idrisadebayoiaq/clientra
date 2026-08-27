@@ -28,6 +28,8 @@ export type DiscoverOptions = {
   cities?: string[];
   worldwide?: boolean;
   freshnessHours?: number;
+  /** Rotates Adzuna pages/keywords so periodic refresh surfaces different listings. */
+  discoveryPass?: number;
 };
 
 export type OpportunitySourceAdapter = {

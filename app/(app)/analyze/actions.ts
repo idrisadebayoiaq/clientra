@@ -12,10 +12,10 @@ import {
   enrichWebsiteContact,
   hasPublicContact,
   mergeContacts,
-  socialNotes,
   type ExtractedContact,
 } from "@/lib/opportunities/public-contact";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
+import { saveScannedContact } from "@/lib/contacts/workspace-contact";
 import type { Json } from "@/types/database";
 
 function asOverview(value: unknown) {
@@ -124,9 +124,16 @@ export async function runAnalysis(targetId: string) {
     let modelUsed = "heuristic";
     let aiWarning: string | undefined;
 
-    if (!page.fetched) {
+    const hasPageEvidence =
+      page.fetched ||
+      Boolean(page.title || page.textSnippet || page.technologies.length || page.headings.length || page.metaDescription);
+    const hasListingEvidence = Boolean(
+      opportunity?.estimated_need || opportunity?.title || opportunity?.company_name,
+    );
+
+    if (!hasPageEvidence && !hasListingEvidence) {
       aiWarning = canScanSite
-        ? undefined
+        ? "The live page could not be read. Run Scan public contacts or try again later."
         : opportunity?.source === "job"
           ? "This is a hiring ad. Findings come from the listing because no company website was stored."
           : "No public company domain was stored, so live page capture was skipped.";
@@ -139,7 +146,7 @@ export async function runAnalysis(targetId: string) {
 Rules:
 - Use only the evidence JSON. Never invent contacts, traffic, revenue, Core Web Vitals, or stack items.
 - If page.fetched is true, analyze the title, meta description, headings, technologies, platform, and text snippet.
-- If page.fetched is false, every unsupported field must be unable_to_determine. Do not invent defects from missing fields.
+- If page.fetched is false but listing or partial page fields exist, use only those fields and label unsupported items unable_to_determine.
 - A normal domain like example.com is a custom domain. Never say the business lacks a custom domain.
 - Title matching the domain is only a finding if page.title was actually captured and is weak.
 - Pain points must cite evidence. Absence of urlscan data is not a client pain point.
@@ -246,47 +253,14 @@ ${JSON.stringify(evidence)}`;
         }
       }
       if (hasPublicContact(contact) || contact.linkedinUrl) {
-        const { data: existing } = opportunity?.id
-          ? await supabase
-              .from("contacts")
-              .select("id, email, phone, notes, website, full_name, business_name")
-              .eq("opportunity_id", opportunity.id)
-              .maybeSingle()
-          : websiteId
-            ? await supabase
-                .from("contacts")
-                .select("id, email, phone, notes, website, full_name, business_name")
-                .eq("website_id", websiteId)
-                .maybeSingle()
-            : { data: null };
-        const row = {
-          user_id: user.id,
-          opportunity_id: opportunity?.id ?? null,
-          website_id: websiteId,
-          full_name: contact.fullName,
-          business_name: contact.businessName,
-          email: contact.email,
-          phone: contact.phone,
-          website: contact.website,
-          notes: socialNotes(contact) || null,
-          source_reference: opportunity?.source ?? "manual",
-          verification_status: "unverified" as const,
-        };
-        if (existing) {
-          await supabase
-            .from("contacts")
-            .update({
-              email: existing.email || row.email,
-              phone: existing.phone || row.phone,
-              website: existing.website || row.website,
-              notes: existing.notes || row.notes,
-              full_name: existing.full_name || row.full_name,
-              business_name: existing.business_name || row.business_name,
-            })
-            .eq("id", existing.id);
-        } else {
-          await supabase.from("contacts").insert(row);
-        }
+        await saveScannedContact(
+          supabase,
+          user.id,
+          { websiteId, opportunityId: opportunity?.id ?? null },
+          contact,
+          opportunity?.source ?? "manual",
+          { replace: true },
+        );
         if (opportunity?.id) {
           await supabase.from("opportunities").update({ contact_available: hasPublicContact(contact) }).eq("id", opportunity.id);
         }

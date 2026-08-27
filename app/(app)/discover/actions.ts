@@ -10,10 +10,22 @@ import {
 import { persistOpportunities } from "@/lib/opportunities/persist";
 import { getUserTargeting } from "@/lib/opportunities/targeting";
 import { SourceNotConfiguredError } from "@/lib/opportunities/types";
+import { notifyNewOpportunities } from "@/lib/notifications/opportunity";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
 type OpportunitySource = Database["public"]["Enums"]["opportunity_source_type"];
+
+const DISCOVERY_INTERVAL_MS = 10 * 60 * 1000;
+
+const SOURCE_TIMESTAMP_COLUMN: Partial<
+  Record<OpportunitySource, "last_job_discovery_at" | "last_website_discovery_at" | "last_apollo_discovery_at" | "last_problem_discovery_at">
+> = {
+  job: "last_job_discovery_at",
+  website_discovery: "last_website_discovery_at",
+  apollo: "last_apollo_discovery_at",
+  problem_post: "last_problem_discovery_at",
+};
 
 function revalidateDiscovery() {
   revalidatePath("/discover");
@@ -23,52 +35,90 @@ function revalidateDiscovery() {
   revalidatePath("/dashboard");
   revalidatePath("/leads");
   revalidatePath("/crm");
+  revalidatePath("/notifications");
+}
+
+function isSourceDue(lastRun: string | null | undefined) {
+  if (!lastRun) return true;
+  return Date.now() - new Date(lastRun).getTime() >= DISCOVERY_INTERVAL_MS;
+}
+
+function discoveryPass() {
+  return Math.floor(Date.now() / DISCOVERY_INTERVAL_MS);
 }
 
 async function runDiscovery(kind: OpportunitySource) {
   const { supabase, user } = await getAuthenticatedUser();
-  if (!user) return { ok: false as const, error: "Sign in required", count: 0 };
+  if (!user) return { ok: false as const, error: "Sign in required", count: 0, newCount: 0 };
 
   const targeting = await getUserTargeting(supabase, user.id);
-  const options = {
+  const discoverOptions = {
     keywords: targeting.keywords,
     countries: targeting.countries,
     adzunaCountries: targeting.adzunaCountries,
     cities: targeting.cities,
     worldwide: targeting.worldwide,
     freshnessHours: targeting.freshnessHours,
+    discoveryPass: discoveryPass(),
   };
 
   try {
     const items =
       kind === "website_discovery"
-        ? await websiteDiscoveryAdapter.discover(options)
+        ? await websiteDiscoveryAdapter.discover(discoverOptions)
         : kind === "job"
-          ? await adzunaAdapter.discover(options)
+          ? await adzunaAdapter.discover(discoverOptions)
           : kind === "apollo"
-            ? await apolloAdapter.discover(options)
-          : kind === "problem_post"
-            ? await problemPostsAdapter.discover(options)
-            : [];
+            ? await apolloAdapter.discover(discoverOptions)
+            : kind === "problem_post"
+              ? await problemPostsAdapter.discover(discoverOptions)
+              : [];
 
-    const { stored, errors } = await persistOpportunities(supabase, user.id, kind, items, {
+    const { stored, newCount, newTitles, errors } = await persistOpportunities(supabase, user.id, kind, items, {
       matchingService: targeting.matchingService,
       keywords: targeting.keywords,
       freshnessHours: targeting.freshnessHours,
     });
-    revalidateDiscovery();
-    if (!stored && errors.length) {
-      return { ok: false as const, error: errors[0], count: 0 };
+
+    const timestampColumn = SOURCE_TIMESTAMP_COLUMN[kind];
+    if (timestampColumn) {
+      const timestamp = new Date().toISOString();
+      if (timestampColumn === "last_job_discovery_at") {
+        await supabase.from("user_preferences").upsert({ user_id: user.id, last_job_discovery_at: timestamp }, { onConflict: "user_id" });
+      } else if (timestampColumn === "last_website_discovery_at") {
+        await supabase.from("user_preferences").upsert({ user_id: user.id, last_website_discovery_at: timestamp }, { onConflict: "user_id" });
+      } else if (timestampColumn === "last_apollo_discovery_at") {
+        await supabase.from("user_preferences").upsert({ user_id: user.id, last_apollo_discovery_at: timestamp }, { onConflict: "user_id" });
+      } else {
+        await supabase.from("user_preferences").upsert({ user_id: user.id, last_problem_discovery_at: timestamp }, { onConflict: "user_id" });
+      }
     }
-    return { ok: true as const, count: stored, warning: errors[0] };
+
+    if (newCount > 0) {
+      await notifyNewOpportunities(supabase, user.id, kind, newCount, newTitles);
+    }
+
+    revalidateDiscovery();
+
+    if (!stored && errors.length) {
+      return { ok: false as const, error: errors[0], count: 0, newCount: 0 };
+    }
+
+    return {
+      ok: true as const,
+      count: newCount,
+      newCount,
+      warning: errors[0],
+    };
   } catch (error) {
     if (error instanceof SourceNotConfiguredError) {
-      return { ok: false as const, error: `${error.source} is not configured`, count: 0 };
+      return { ok: false as const, error: `${error.source} is not configured`, count: 0, newCount: 0 };
     }
     return {
       ok: false as const,
       error: error instanceof Error ? error.message : "Discovery request failed",
       count: 0,
+      newCount: 0,
     };
   }
 }
@@ -105,7 +155,7 @@ export async function discoverConfiguredSources() {
 async function recordDiscovery(
   supabase: Awaited<ReturnType<typeof getAuthenticatedUser>>["supabase"],
   userId: string,
-  results: Array<{ ok: boolean; error?: string; count: number } | null>,
+  results: Array<{ ok: boolean; error?: string; count: number; newCount?: number } | null>,
 ) {
   const usable = results.filter((result): result is NonNullable<typeof result> => Boolean(result));
   const count = usable.reduce((sum, result) => sum + (result.ok ? result.count : 0), 0);
@@ -138,7 +188,9 @@ export async function ensureUserDiscovery() {
     supabase.from("opportunities").select("source"),
     supabase
       .from("user_preferences")
-      .select("last_discovery_at")
+      .select(
+        "last_discovery_at, last_job_discovery_at, last_website_discovery_at, last_apollo_discovery_at, last_problem_discovery_at",
+      )
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
@@ -148,22 +200,39 @@ export async function ensureUserDiscovery() {
     counts.set(row.source, (counts.get(row.source) ?? 0) + 1);
   }
   const total = sourceRows?.length ?? 0;
-  const missing: OpportunitySource[] = [];
-  if (websiteDiscoveryAdapter.configured() && !counts.get("website_discovery")) missing.push("website_discovery");
-  if (adzunaAdapter.configured() && !counts.get("job")) missing.push("job");
-  if (apolloAdapter.configured() && !counts.get("apollo")) missing.push("apollo");
-  if (problemPostsAdapter.configured() && !counts.get("problem_post")) missing.push("problem_post");
+  const sourcesToRun = new Set<OpportunitySource>();
 
-  if (!missing.length) {
+  if (websiteDiscoveryAdapter.configured() && !counts.get("website_discovery")) {
+    sourcesToRun.add("website_discovery");
+  }
+  if (adzunaAdapter.configured() && !counts.get("job")) {
+    sourcesToRun.add("job");
+  }
+  if (apolloAdapter.configured() && !counts.get("apollo")) {
+    sourcesToRun.add("apollo");
+  }
+  if (problemPostsAdapter.configured() && !counts.get("problem_post")) {
+    sourcesToRun.add("problem_post");
+  }
+
+  if (adzunaAdapter.configured() && isSourceDue(prefs.data?.last_job_discovery_at)) {
+    sourcesToRun.add("job");
+  }
+  if (websiteDiscoveryAdapter.configured() && isSourceDue(prefs.data?.last_website_discovery_at)) {
+    sourcesToRun.add("website_discovery");
+  }
+  if (apolloAdapter.configured() && isSourceDue(prefs.data?.last_apollo_discovery_at)) {
+    sourcesToRun.add("apollo");
+  }
+  if (problemPostsAdapter.configured() && isSourceDue(prefs.data?.last_problem_discovery_at)) {
+    sourcesToRun.add("problem_post");
+  }
+
+  if (!sourcesToRun.size) {
     return { ok: true as const, count: total };
   }
 
-  const last = prefs.data?.last_discovery_at;
-  if (total > 0 && last && Date.now() - new Date(last).getTime() < 10 * 60 * 1000) {
-    return { ok: true as const, count: total };
-  }
-
-  const results = await Promise.all(missing.map((kind) => runDiscovery(kind)));
+  const results = await Promise.all([...sourcesToRun].map((kind) => runDiscovery(kind)));
   return recordDiscovery(supabase, user.id, results);
 }
 

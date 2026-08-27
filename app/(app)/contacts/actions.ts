@@ -5,8 +5,8 @@ import { shouldPersistWebsite } from "@/lib/opportunities/domains";
 import {
   enrichWebsiteContact,
   hasPublicContact,
-  socialNotes,
 } from "@/lib/opportunities/public-contact";
+import { saveScannedContact } from "@/lib/contacts/workspace-contact";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export async function addWorkspaceContact(formData: FormData) {
@@ -87,49 +87,18 @@ export async function scanPublicContacts(targetId: string) {
 
   const websiteId = website?.id ?? opportunity?.website_id ?? null;
   const opportunityId = opportunity?.id ?? null;
-  const { data: existing } = opportunityId
-    ? await supabase
-        .from("contacts")
-        .select("id, email, phone, notes, website, full_name, business_name")
-        .eq("opportunity_id", opportunityId)
-        .maybeSingle()
-    : websiteId
-      ? await supabase
-          .from("contacts")
-          .select("id, email, phone, notes, website, full_name, business_name")
-          .eq("website_id", websiteId)
-          .maybeSingle()
-      : { data: null };
-
-  const row = {
-    user_id: user.id,
-    opportunity_id: opportunityId,
-    website_id: websiteId,
-    full_name: contact.fullName,
-    business_name: contact.businessName ?? website?.business_name ?? opportunity?.company_name,
-    email: contact.email,
-    phone: contact.phone,
-    website: contact.website ?? url,
-    notes: socialNotes(contact) || null,
-    source_reference: opportunity?.source ?? "manual",
-    verification_status: "unverified" as const,
-  };
-
-  if (existing) {
-    await supabase
-      .from("contacts")
-      .update({
-        email: existing.email || row.email,
-        phone: existing.phone || row.phone,
-        website: existing.website || row.website,
-        notes: [existing.notes, row.notes].filter(Boolean).join("\n") || null,
-        full_name: existing.full_name || row.full_name,
-        business_name: existing.business_name || row.business_name,
-      })
-      .eq("id", existing.id);
-  } else {
-    await supabase.from("contacts").insert(row);
-  }
+  await saveScannedContact(
+    supabase,
+    user.id,
+    { websiteId, opportunityId },
+    {
+      ...contact,
+      businessName: contact.businessName ?? website?.business_name ?? opportunity?.company_name ?? null,
+      website: contact.website ?? url,
+    },
+    opportunity?.source ?? "manual",
+    { replace: true },
+  );
 
   if (opportunityId) {
     await supabase.from("opportunities").update({ contact_available: hasPublicContact(contact) }).eq("id", opportunityId);

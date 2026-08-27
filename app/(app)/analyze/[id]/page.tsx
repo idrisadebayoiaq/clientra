@@ -1,10 +1,11 @@
 import { AppPageShell } from "@/components/app/page-shell";
 import { AddContactForm } from "@/components/app/add-contact-form";
 import { AnalyzeWebsiteButton } from "@/components/app/analyze-website-button";
-import { ContactDetails, firstContact } from "@/components/app/contact-details";
+import { ContactDetails } from "@/components/app/contact-details";
 import { ScanContactsButton } from "@/components/app/scan-contacts-button";
 import { NotConfiguredState } from "@/components/ui/feedback";
 import { ButtonLink, Card } from "@/components/ui/primitives";
+import { loadTargetContact } from "@/lib/contacts/workspace-contact";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 import type { Tables } from "@/types/database";
@@ -18,6 +19,7 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 type Overview = {
@@ -70,23 +72,52 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     : { data: null };
 
   const entityIds = [websiteId, opportunityId, id].filter((value, index, all): value is string => Boolean(value) && all.indexOf(value) === index);
-  const { data: aiRow } = entityIds.length
+  const { data: aiRow } = websiteId
     ? await supabase
         .from("ai_analyses")
         .select("result, created_at")
         .eq("analysis_type", "website_analysis")
-        .in("entity_id", entityIds)
+        .eq("entity_type", "website")
+        .eq("entity_id", websiteId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
-    : { data: null };
+    : opportunityId
+      ? await supabase
+          .from("ai_analyses")
+          .select("result, created_at")
+          .eq("analysis_type", "website_analysis")
+          .eq("entity_type", "opportunity")
+          .eq("entity_id", opportunityId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : entityIds.length
+        ? await supabase
+            .from("ai_analyses")
+            .select("result, created_at")
+            .eq("analysis_type", "website_analysis")
+            .in("entity_id", entityIds)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
 
   const fromWebsite = analysisRow
     ? { overview: analysisRow.overview as Overview | null, technical: analysisRow.technical, business: analysisRow.business }
     : null;
   const fromAi = asStoredAnalysis(aiRow?.result);
-  const hasWebsiteFindings = Array.isArray(fromWebsite?.technical) && fromWebsite.technical.length > 0;
-  const analysis = hasWebsiteFindings ? fromWebsite : fromAi ?? fromWebsite;
+  const hasWebsiteFindings =
+    Boolean(
+      (Array.isArray(fromWebsite?.technical) && fromWebsite.technical.length) ||
+        (Array.isArray(fromWebsite?.business) && fromWebsite.business.length),
+    );
+  const hasAiFindings =
+    Boolean(
+      (Array.isArray(fromAi?.technical) && fromAi.technical.length) ||
+        (Array.isArray(fromAi?.business) && fromAi.business.length),
+    );
+  const analysis = hasWebsiteFindings ? fromWebsite : hasAiFindings ? fromAi : fromWebsite ?? fromAi;
 
   let painPoints: Tables<"pain_points">[] = [];
   if (analysisRow?.id) {
@@ -105,21 +136,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     painPoints = result.data ?? [];
   }
 
-  const { data: contacts } = websiteId || opportunityId
-    ? await supabase
-        .from("contacts")
-        .select("email, phone, website, full_name, business_name, notes, verification_status")
-        .or(
-          [
-            websiteId ? `website_id.eq.${websiteId}` : null,
-            opportunityId ? `opportunity_id.eq.${opportunityId}` : null,
-          ]
-            .filter(Boolean)
-            .join(","),
-        )
-        .order("created_at", { ascending: false })
-        .limit(5)
-    : { data: [] as Tables<"contacts">[] };
+  const contact = await loadTargetContact(supabase, { websiteId, opportunityId });
 
   const configured = isOpenRouterConfigured();
   const targetId = website?.id ?? opportunity?.id ?? id;
@@ -150,7 +167,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
     : websiteId
       ? `/outreach?website=${websiteId}`
       : "/outreach";
-  const contact = firstContact(contacts);
+  const contactKey = `${websiteId ?? "none"}:${opportunityId ?? "none"}`;
 
   if (!website && !opportunity) {
     return (
@@ -248,6 +265,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
         </Card>
       </div>
       <AddContactForm
+        key={contactKey}
         opportunityId={opportunityId}
         websiteId={websiteId}
         defaultWebsite={website?.url ?? (shouldUseListingUrl(opportunity?.source_url) ? null : opportunity?.source_url) ?? null}

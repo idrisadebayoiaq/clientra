@@ -13,7 +13,7 @@ const COPY: Record<string, { title: string; body: string }> = {
     title: "AI settings",
     body: "Outreach and analysis use Claude Sonnet 5. Scoring and intent use Gemini 3.7 Flash. Deep website analysis uses Claude Opus 5. All calls go through OpenRouter on the server.",
   },
-  notifications: { title: "Notifications", body: "In-app notifications are enabled. Email and browser notifications can be added later." },
+  notifications: { title: "Notifications", body: "In-app alerts are enabled for new jobs and other opportunities (checked about every 10 minutes while you use the app). Email and browser notifications can be added later." },
   security: { title: "Security", body: "Use a strong password. Gmail is connected only through Google OAuth." },
   privacy: { title: "Data & Privacy", body: "You can disconnect integrations and request deletion of your workspace data." },
 };

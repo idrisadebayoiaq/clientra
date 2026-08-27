@@ -82,12 +82,32 @@ export async function persistOpportunities(
   options?: { matchingService?: string | null; keywords?: string[]; freshnessHours?: number },
 ) {
   let stored = 0;
+  let newCount = 0;
+  const newTitles: string[] = [];
   const errors: string[] = [];
 
   for (const item of items) {
     const hash = item.contentHash;
     if (!hash) {
       errors.push(`Skipped "${item.title}" because it had no content hash`);
+      continue;
+    }
+
+    const { data: existingOpportunity } = await supabase
+      .from("opportunities")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("content_hash", hash)
+      .maybeSingle();
+
+    if (existingOpportunity) {
+      await supabase
+        .from("opportunities")
+        .update({
+          last_verified_at: new Date().toISOString(),
+          freshness_status: freshnessFromDate(item.publishedAt, options?.freshnessHours ?? 48),
+        })
+        .eq("id", existingOpportunity.id);
       continue;
     }
 
@@ -155,31 +175,18 @@ export async function persistOpportunities(
       raw_payload: slimRaw(item.raw),
     };
 
-    const { data: opportunity, error } = await supabase
-      .from("opportunities")
-      .upsert(row, { onConflict: "user_id,content_hash" })
-      .select("id")
-      .maybeSingle();
-
-    let saved = opportunity;
+    const { data: saved, error } = await supabase.from("opportunities").insert(row).select("id").maybeSingle();
     if (error || !saved) {
-      const { data: inserted, error: insertError } = await supabase
-        .from("opportunities")
-        .insert(row)
-        .select("id")
-        .maybeSingle();
-      if (insertError || !inserted) {
-        if (insertError?.code === "23505" || insertError?.message?.toLowerCase().includes("duplicate")) {
-          stored += 1;
-          continue;
-        }
-        errors.push(`${item.title}: ${error?.message ?? insertError?.message ?? "could not save"}`);
+      if (error?.code === "23505" || error?.message?.toLowerCase().includes("duplicate")) {
         continue;
       }
-      saved = inserted;
+      errors.push(`${item.title}: ${error?.message ?? "could not save"}`);
+      continue;
     }
 
     stored += 1;
+    newCount += 1;
+    if (newTitles.length < 3) newTitles.push(item.title);
     await upsertContact(supabase, userId, saved.id, websiteId, source, item, extracted);
 
     if (websiteId && extracted.email) {
@@ -190,5 +197,5 @@ export async function persistOpportunities(
     }
   }
 
-  return { stored, errors };
+  return { stored, newCount, newTitles, errors };
 }

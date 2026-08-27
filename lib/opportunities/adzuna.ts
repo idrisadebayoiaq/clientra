@@ -79,7 +79,7 @@ function normalize(raw: unknown): NormalizedOpportunity {
   };
 }
 
-async function searchCountry(country: string, what: string, freshnessHours: number) {
+async function searchCountry(country: string, what: string, freshnessHours: number, page = 1) {
   const env = getServerEnv();
   const params = new URLSearchParams({
     app_id: env.adzunaAppId,
@@ -87,9 +87,10 @@ async function searchCountry(country: string, what: string, freshnessHours: numb
     results_per_page: "20",
     what,
     max_days_old: String(Math.max(1, Math.ceil(freshnessHours / 24))),
+    sort_by: "date",
   });
   const response = await fetch(
-    `https://api.adzuna.com/v1/api/jobs/${country}/search/1?${params.toString()}`,
+    `https://api.adzuna.com/v1/api/jobs/${country}/search/${page}?${params.toString()}`,
   );
   if (!response.ok) return [];
   const json = (await response.json()) as { results?: AdzunaJob[] };
@@ -102,28 +103,34 @@ export const adzunaAdapter: OpportunitySourceAdapter = {
   discover: async (options?: DiscoverOptions) => {
     if (!isAdzunaConfigured()) throw new SourceNotConfiguredError("Adzuna");
     const freshnessHours = options?.freshnessHours ?? 48;
+    const discoveryPass = options?.discoveryPass ?? 0;
+    const page = (discoveryPass % 3) + 1;
     const countries = (options?.adzunaCountries ?? [])
       .map((country) => country.toLowerCase())
       .filter((country) => ADZUNA_COUNTRIES.has(country));
-    const usableCountries = (countries.length ? countries : ["us", "gb"]).slice(0, 2);
+    const baseCountries = countries.length ? countries : ["us", "gb"];
+    const countryOffset = discoveryPass % baseCountries.length;
+    const usableCountries = [...baseCountries.slice(countryOffset), ...baseCountries.slice(0, countryOffset)].slice(0, 2);
     const keywords = (options?.keywords ?? ["web developer", "shopify", "seo"])
       .map(sanitizeWhat)
       .filter((keyword) => keyword.length >= 2)
-      .slice(0, 2);
-    const usableKeywords = keywords.length ? keywords : ["web developer"];
+      .slice(0, 4);
+    const baseKeywords = keywords.length ? keywords : ["web developer"];
+    const keywordOffset = discoveryPass % baseKeywords.length;
+    const usableKeywords = [...baseKeywords.slice(keywordOffset), ...baseKeywords.slice(0, keywordOffset)].slice(0, 2);
 
     const jobs: AdzunaJob[] = [];
     for (const country of usableCountries) {
       for (const what of usableKeywords) {
-        jobs.push(...(await searchCountry(country, what, freshnessHours)));
+        jobs.push(...(await searchCountry(country, what, freshnessHours, page)));
         if (jobs.length >= 20) break;
       }
       if (jobs.length >= 20) break;
     }
 
     if (!jobs.length) {
-      jobs.push(...(await searchCountry("us", "software developer", Math.max(freshnessHours, 72))));
-      jobs.push(...(await searchCountry("gb", "web developer", Math.max(freshnessHours, 72))));
+      jobs.push(...(await searchCountry("us", "software developer", Math.max(freshnessHours, 72), page)));
+      jobs.push(...(await searchCountry("gb", "web developer", Math.max(freshnessHours, 72), page)));
     }
 
     return adzunaAdapter.deduplicate(jobs.map(normalize).filter((item) => item.sourceId));

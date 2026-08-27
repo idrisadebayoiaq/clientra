@@ -24,7 +24,7 @@ class AiRequestError extends Error {
   }
 }
 
-async function completeOnce(model: string, prompt: string, temperature: number) {
+async function completeOnce(model: string, prompt: string, temperature: number, timeoutMs = 15000) {
   const env = getServerEnv();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
@@ -82,10 +82,11 @@ export async function complete(prompt: string, kind: "default" | "fast" | "reaso
   if (!isOpenRouterConfigured()) throw new AiNotConfiguredError();
   const models = Array.from(new Set([getModel(kind), "openrouter/auto"]));
   const temperature = kind === "fast" ? 0.2 : 0.4;
+  const timeoutMs = kind === "default" ? 30000 : 15000;
   let lastError: Error | null = null;
   for (const [index, model] of models.entries()) {
     try {
-      return await completeOnce(model, prompt, temperature);
+      return await completeOnce(model, prompt, temperature, timeoutMs);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("AI provider request failed");
       const retryable = error instanceof AiRequestError ? error.retryable : false;

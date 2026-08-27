@@ -1570,6 +1570,10 @@ export type Database = {
           last_discovery_at: string | null
           last_discovery_count: number | null
           last_discovery_error: string | null
+          last_job_discovery_at: string | null
+          last_website_discovery_at: string | null
+          last_apollo_discovery_at: string | null
+          last_problem_discovery_at: string | null
           outreach_mode: Database["public"]["Enums"]["approval_mode"]
           project_value_max: number | null
           project_value_min: number | null
@@ -1592,6 +1596,10 @@ export type Database = {
           last_discovery_at?: string | null
           last_discovery_count?: number | null
           last_discovery_error?: string | null
+          last_job_discovery_at?: string | null
+          last_website_discovery_at?: string | null
+          last_apollo_discovery_at?: string | null
+          last_problem_discovery_at?: string | null
           outreach_mode?: Database["public"]["Enums"]["approval_mode"]
           project_value_max?: number | null
           project_value_min?: number | null
@@ -1614,6 +1622,10 @@ export type Database = {
           last_discovery_at?: string | null
           last_discovery_count?: number | null
           last_discovery_error?: string | null
+          last_job_discovery_at?: string | null
+          last_website_discovery_at?: string | null
+          last_apollo_discovery_at?: string | null
+          last_problem_discovery_at?: string | null
           outreach_mode?: Database["public"]["Enums"]["approval_mode"]
           project_value_max?: number | null
           project_value_min?: number | null

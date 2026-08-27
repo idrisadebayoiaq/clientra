@@ -393,8 +393,27 @@ export async function collectWebsiteEvidence(input: {
 
     const liveParsed =
       livePage?.html && domain ? parseHtml(livePage.html, livePage.url, domain, livePage.status) : null;
-    const usableLive = liveParsed?.fetched ? liveParsed : null;
+    let usableLive = liveParsed?.fetched ? liveParsed : null;
     if (liveParsed && !liveParsed.fetched) notes.push(...liveParsed.notes);
+
+    if (!usableLive && startUrl && domain) {
+      const alternatePaths = ["/contact", "/contact-us", "/contactus", "/about", "/about-us", "/about"];
+      for (const path of alternatePaths) {
+        try {
+          const alternateUrl = new URL(path, startUrl).toString();
+          const alternatePage = await fetchHtml(alternateUrl);
+          if (!alternatePage?.html) continue;
+          const alternateParsed = parseHtml(alternatePage.html, alternatePage.url, domain, alternatePage.status);
+          if (alternateParsed.fetched) {
+            usableLive = alternateParsed;
+            notes.push(`Homepage was blocked; captured ${path} instead.`);
+            break;
+          }
+        } catch {
+          // Try the next public page.
+        }
+      }
+    }
 
     const uuid = input.urlscanUuid || searchHit?._id || searchHit?.task?.uuid || null;
     const siteUrl = searchHit?.page?.url || startUrl;

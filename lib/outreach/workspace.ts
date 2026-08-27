@@ -80,12 +80,12 @@ export async function enrichOpportunityContact(
       await supabase
         .from("contacts")
         .update({
-          email: existing.email || row.email,
-          phone: existing.phone || row.phone,
-          website: existing.website || row.website,
-          notes: row.notes,
-          full_name: existing.full_name || row.full_name,
-          business_name: existing.business_name || row.business_name,
+          email: row.email ?? existing.email,
+          phone: row.phone ?? existing.phone,
+          website: row.website ?? existing.website,
+          notes: row.notes ?? existing.notes,
+          full_name: row.full_name ?? existing.full_name,
+          business_name: row.business_name ?? existing.business_name,
         })
         .eq("id", existing.id);
     } else {
@@ -108,8 +108,23 @@ export async function prepareOutreachWorkspace(
   user: User,
   opportunity: Tables<"opportunities">,
 ) {
-  const [{ data: existingContact }, { data: profile }, { data: services }, { data: draft }] = await Promise.all([
-    supabase.from("contacts").select("*").eq("opportunity_id", opportunity.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  const [{ data: existingContact }, { data: profile }, { data: services }, { data: draft }, { data: analysisRow }] =
+    await Promise.all([
+    opportunity.website_id
+      ? supabase
+          .from("contacts")
+          .select("*")
+          .eq("website_id", opportunity.website_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : supabase
+          .from("contacts")
+          .select("*")
+          .eq("opportunity_id", opportunity.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
     supabase.from("profiles").select("full_name, email, expertise_description").eq("id", user.id).maybeSingle(),
     supabase.from("user_services").select("custom_label, service_key").eq("user_id", user.id),
     supabase
@@ -120,11 +135,51 @@ export async function prepareOutreachWorkspace(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    opportunity.website_id
+      ? supabase
+          .from("website_analyses")
+          .select("id, technical, business, overview")
+          .eq("website_id", opportunity.website_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+
+  const { data: painPoints } = analysisRow?.id
+    ? await supabase
+        .from("pain_points")
+        .select("title, severity, description")
+        .eq("website_analysis_id", analysisRow.id)
+        .order("created_at", { ascending: false })
+        .limit(6)
+    : await supabase
+        .from("pain_points")
+        .select("title, severity, description")
+        .eq("opportunity_id", opportunity.id)
+        .order("created_at", { ascending: false })
+        .limit(6);
 
   const contact = await enrichOpportunityContact(supabase, user.id, opportunity, existingContact);
   const senderName = resolveSenderName(profile, user);
   const serviceLabels = (services ?? []).map((row) => row.custom_label || row.service_key.replace(/_/g, " "));
+
+  const analysisSummary = [
+    analysisRow?.overview && typeof analysisRow.overview === "object"
+      ? `Overview: ${JSON.stringify(analysisRow.overview)}`
+      : null,
+    Array.isArray(analysisRow?.technical) && analysisRow.technical.length
+      ? `Technical findings: ${JSON.stringify(analysisRow.technical.slice(0, 4))}`
+      : null,
+    Array.isArray(analysisRow?.business) && analysisRow.business.length
+      ? `Business findings: ${JSON.stringify(analysisRow.business.slice(0, 4))}`
+      : null,
+    painPoints?.length
+      ? `Pain points: ${painPoints.map((point) => `${point.severity}: ${point.title}`).join("; ")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   let subject = draft?.subject ?? "";
   let body = draft?.body ?? "";
@@ -137,6 +192,7 @@ export async function prepareOutreachWorkspace(
         services: serviceLabels,
         opportunity,
         contact,
+        extra: analysisSummary || undefined,
       });
       subject = generated.subject;
       body = generated.body;
@@ -154,5 +210,5 @@ export async function prepareOutreachWorkspace(
     }
   }
 
-  return { contact, senderName, senderEmail: profile?.email ?? user.email ?? "", subject, body };
+  return { contact, senderName, senderEmail: profile?.email ?? user.email ?? "", subject, body, analysisSummary };
 }
