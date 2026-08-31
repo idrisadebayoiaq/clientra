@@ -8,6 +8,7 @@ import {
   isAdzunaConfigured,
   isApolloConfigured,
   isGmailOAuthConfigured,
+  isGoogleMapsConfigured,
   isOmkarConfigured,
   isUrlscanConfigured,
 } from "@/lib/env";
@@ -94,17 +95,22 @@ export default async function IntegrationsPage({
           {
             name: "Public site crawl",
             ready: true,
-            body: "Built into Analyze and Scan public contacts. Reads emails, phones, and social links from the company homepage and contact/about pages. No API key.",
+            body: "Built into Audit Website and Scan public contacts. Reads emails, phones, and social links from the company homepage and contact/about pages. No API key.",
+          },
+          {
+            name: "Google Maps / Places",
+            ready: isGoogleMapsConfigured(),
+            body: "Powers Find Opportunity. Enable “Places API (New)” in Google Cloud Console (APIs & Services → Library), add GOOGLE_MAPS_API_KEY, and ensure billing is on.",
           },
           {
             name: "Omkar contact scraper",
             ready: isOmkarConfigured(),
-            body: "Optional deeper crawl. Add OMKAR_API_KEY on Vercel (same value as local .env). Clientra calls Omkar with the API-Key header during Scan public contacts and Run analysis.",
+            body: "Optional deeper crawl. Add OMKAR_API_KEY on Vercel (same value as local .env). Clientra calls Omkar with the API-Key header during Scan public contacts and Run audit.",
           },
           {
             name: "urlscan",
             ready: isUrlscanConfigured(),
-            body: "Imports newly detected public websites into Website Opportunities.",
+            body: "Optional source for the Discover feed (public website detections). Find Opportunity uses Google Maps instead.",
           },
           {
             name: "Hacker News (Algolia)",

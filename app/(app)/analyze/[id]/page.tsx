@@ -180,20 +180,30 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
               ? "Saved analysis"
               : null;
   const composeHref = opportunityId
-    ? `/outreach?opportunity=${opportunityId}&refresh=1`
+    ? `/outreach?opportunity=${opportunityId}&refresh=1&audit=1`
     : websiteId
-      ? `/outreach?website=${websiteId}&refresh=1`
+      ? `/outreach?website=${websiteId}&refresh=1&audit=1`
       : "/outreach";
+  const overviewRecord =
+    overview && typeof overview === "object" ? (overview as Record<string, unknown>) : null;
+  const pitchGaps = Array.isArray(overviewRecord?.gaps)
+    ? (overviewRecord!.gaps as string[]).filter(Boolean)
+    : [];
+  const pitchAngles = Array.isArray(overviewRecord?.pitchAngles)
+    ? (overviewRecord!.pitchAngles as { angle?: string; evidence?: string; service?: string }[]).filter(
+        (row) => row?.angle,
+      )
+    : [];
   const contactKey = `${websiteId ?? "none"}:${opportunityId ?? "none"}`;
 
   if (!website && !opportunity) {
     return (
       <AppPageShell
-        title="Analyze Website"
+        title="Audit Website"
         description="This record was not found in your workspace."
       >
         <Card className="p-5 text-sm text-ink-muted">
-          Open Analyze Website from the sidebar and paste a URL, or choose a site from Website Opportunities.
+          Open Audit Website from the sidebar and paste a URL, or audit a site from Find Opportunity results.
         </Card>
       </AppPageShell>
     );
@@ -201,8 +211,8 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
 
   return (
     <AppPageShell
-      title={`Analyze ${title}`}
-      description="AI analysis workspace. Findings are labeled Detected, Possible, or Unable to determine."
+      title={`Audit ${title}`}
+      description="AI-powered website audit. Findings show what the business is lacking so you can pitch improvements with evidence."
       actions={
         <>
           <AnalyzeWebsiteButton targetId={targetId} />
@@ -211,7 +221,7 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
             Add contact
           </ButtonLink>
           <ButtonLink href={composeHref} variant="outline">
-            Compose message
+            Generate pitch
           </ButtonLink>
         </>
       }
@@ -265,6 +275,46 @@ export default async function AnalyzePage({ params }: { params: Promise<{ id: st
         <Card className="p-5">
           <h2 className="font-semibold">Business Analysis</h2>
           <AnalysisBlock data={analysis?.business} empty="Business model, audience, and conversion opportunities appear after a successful analysis run." />
+        </Card>
+        <Card className="p-5 lg:col-span-2">
+          <h2 className="font-semibold">Pitch opportunities</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            What this business is lacking — use these angles when you generate a pitch.
+          </p>
+          {pitchGaps.length || pitchAngles.length ? (
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+              {pitchGaps.length ? (
+                <div>
+                  <h3 className="text-sm font-medium">Gaps detected</h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink-muted">
+                    {pitchGaps.map((gap) => (
+                      <li key={gap}>{gap}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {pitchAngles.length ? (
+                <div>
+                  <h3 className="text-sm font-medium">Suggested pitch angles</h3>
+                  <ul className="mt-2 space-y-2 text-sm">
+                    {pitchAngles.map((item) => (
+                      <li key={item.angle}>
+                        <p className="font-medium">{item.angle}</p>
+                        {item.evidence ? <p className="text-ink-muted">{item.evidence}</p> : null}
+                        {item.service ? (
+                          <p className="text-xs text-teal-800">Pitch: {item.service}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-ink-muted">
+              Run audit to let AI identify gaps and pitch angles from the live website.
+            </p>
+          )}
         </Card>
         <Card className="p-5">
           <h2 className="font-semibold">Pain Points</h2>

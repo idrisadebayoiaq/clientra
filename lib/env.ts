@@ -68,6 +68,7 @@ export function getServerEnv() {
     omkarContactApiUrl: normalize(process.env.OMKAR_CONTACT_API_URL),
     rapidApiKey: normalize(process.env.RAPIDAPI_KEY),
     rapidApiHost: normalize(process.env.RAPIDAPI_HOST),
+    googleMapsApiKey: normalize(process.env.GOOGLE_MAPS_API_KEY),
     appUrl: publicEnv.appUrl,
   };
 }
@@ -98,4 +99,8 @@ export function isOmkarConfigured(): boolean {
 
 export function isProblemDiscoveryConfigured(): boolean {
   return true;
+}
+
+export function isGoogleMapsConfigured(): boolean {
+  return Boolean(normalize(process.env.GOOGLE_MAPS_API_KEY));
 }

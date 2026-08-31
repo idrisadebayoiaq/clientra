@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { generateOutreach } from "@/lib/ai";
 import type { ExtractedContact } from "@/lib/opportunities/public-contact";
 import { resolveTargetCompanyName } from "@/lib/outreach/draft-helpers";
+import { pitchContextForPrompt, type PitchContext } from "@/lib/outreach/pitch-context";
 
 export function resolveSenderName(
   profile: { full_name?: string | null; email?: string | null } | null,
@@ -40,12 +41,14 @@ export async function composeOutreachMessage(input: {
   } | null;
   contact: ExtractedContact | null;
   extra?: string;
+  pitchContext?: PitchContext | null;
 }) {
   const companyName = resolveTargetCompanyName({
     opportunity: input.opportunity,
     contact: input.contact,
   });
   const recipientName = input.contact?.fullName || input.opportunity?.person_name || companyName;
+  const auditBlock = input.pitchContext ? pitchContextForPrompt(input.pitchContext) : input.extra || "";
   const prompt = `Write a short personalized ${input.channel} message the user can send now.
 
 Rules:
@@ -81,7 +84,9 @@ ${JSON.stringify(
   },
   null,
   2,
-)}`;
+)}
+
+${auditBlock ? `Audit & pitch evidence:\n${auditBlock}` : ""}`;
 
   const body = await generateOutreach(prompt);
   const cleaned = body

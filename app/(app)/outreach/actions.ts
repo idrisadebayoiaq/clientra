@@ -5,6 +5,7 @@ import { isOpenRouterConfigured } from "@/lib/env";
 import { sendGmailMessage } from "@/lib/gmail/send";
 import { composeOutreachMessage, resolveSenderName } from "@/lib/outreach/compose";
 import { clearOpportunityDrafts, enrichOpportunityContact } from "@/lib/outreach/workspace";
+import { buildPitchContext } from "@/lib/outreach/pitch-context";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
 
 export async function generateOutreachDraft(formData: FormData) {
@@ -26,6 +27,36 @@ export async function generateOutreachDraft(formData: FormData) {
     supabase.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
     supabase.from("user_services").select("custom_label, service_key").eq("user_id", user.id),
   ]);
+
+  const { data: analysisRow } = opportunity?.website_id
+    ? await supabase
+        .from("website_analyses")
+        .select("id, technical, business, overview, created_at")
+        .eq("website_id", opportunity.website_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+
+  const { data: painPoints } = analysisRow?.id
+    ? await supabase
+        .from("pain_points")
+        .select("title, severity, description")
+        .eq("website_analysis_id", analysisRow.id)
+        .order("created_at", { ascending: false })
+        .limit(6)
+    : opportunity
+      ? await supabase
+          .from("pain_points")
+          .select("title, severity, description")
+          .eq("opportunity_id", opportunity.id)
+          .order("created_at", { ascending: false })
+          .limit(6)
+      : { data: null };
+
+  const pitchContext = opportunity
+    ? buildPitchContext({ opportunity, analysisRow, painPoints: painPoints ?? [] })
+    : null;
 
   const { data: existingContact } = opportunity?.website_id
     ? await supabase
@@ -63,6 +94,7 @@ export async function generateOutreachDraft(formData: FormData) {
     opportunity,
     contact,
     extra,
+    pitchContext,
   });
 
   const { data: draft } = await supabase

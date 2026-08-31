@@ -5,8 +5,8 @@ export default function HelpPage() {
   return (
     <AppPageShell title="Help" description="Clientra is a client acquisition engine, not a freelancer marketplace.">
       <Card className="space-y-3 p-5 text-sm text-ink-muted">
-        <p>Use Discover for a combined feed, Website Opportunities for newly detected sites, and Problem Opportunities for public requests.</p>
-        <p>Analyze a website before outreach. Scores are estimates, not guarantees.</p>
+        <p>Use Discover for a combined feed, Find Opportunity for local Google Maps businesses, and Saved Leads for businesses you want to revisit later.</p>
+        <p>Audit a website before outreach. Opportunity scores are estimates, not guarantees.</p>
         <p>Connect Gmail only through Google OAuth. Never share your Gmail password.</p>
         <p>Automatic follow-ups and automatic replies stay off until you enable them in onboarding or settings.</p>
       </Card>
@@ -14,7 +14,7 @@ export default function HelpPage() {
       <Card className="space-y-3 p-5 text-sm">
         <h2 className="font-semibold">Public site crawl (built in)</h2>
         <p className="text-ink-muted">
-          On a company website analysis page, click <strong>Scan public contacts</strong> or <strong>Run analysis</strong>.
+          On a company website audit page, click <strong>Scan public contacts</strong> or <strong>Run audit</strong>.
           Clientra reads the homepage plus contact/about/team pages for public emails, phones, and LinkedIn.
           No API key required.
         </p>
@@ -66,7 +66,7 @@ export default function HelpPage() {
             in your browser (no Clientra API for this tool).
           </li>
           <li>Paste the company URL and run a scan.</li>
-          <li>Copy any public email/phone you find into Clientra with Add contact on the analyze page.</li>
+          <li>Copy any public email/phone you find into Clientra with Add contact on the audit page.</li>
         </ol>
       </Card>
     </AppPageShell>

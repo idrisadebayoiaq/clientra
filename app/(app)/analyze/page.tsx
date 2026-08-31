@@ -4,8 +4,8 @@ import { AnalyzeOwnWebsiteForm } from "@/components/app/analyze-own-website-form
 export default function AnalyzeIndexPage() {
   return (
     <AppPageShell
-      title="Analyze Website"
-      description="Paste a website you found yourself, or open Analyze Website from a discovered site in Website Opportunities."
+      title="Audit Website"
+      description="Paste a website URL. Clientra audits the site, detects contacts, and helps you write outreach based on what it finds."
     >
       <AnalyzeOwnWebsiteForm />
     </AppPageShell>

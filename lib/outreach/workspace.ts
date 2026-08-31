@@ -1,5 +1,6 @@
 import { composeOutreachMessage, resolveSenderName } from "@/lib/outreach/compose";
 import { draftMatchesTarget, resolveTargetCompanyName } from "@/lib/outreach/draft-helpers";
+import { buildPitchContext } from "@/lib/outreach/pitch-context";
 import type { createClient } from "@/lib/supabase/server";
 import type { User } from "@supabase/supabase-js";
 import type { Tables } from "@/types/database";
@@ -181,23 +182,13 @@ export async function prepareOutreachWorkspace(
   const senderName = resolveSenderName(profile, user);
   const serviceLabels = (services ?? []).map((row) => row.custom_label || row.service_key.replace(/_/g, " "));
 
-  const analysisSummary = [
-    `Company: ${companyName}`,
-    analysisRow?.overview && typeof analysisRow.overview === "object"
-      ? `Overview: ${JSON.stringify(analysisRow.overview)}`
-      : null,
-    Array.isArray(analysisRow?.technical) && analysisRow.technical.length
-      ? `Technical findings: ${JSON.stringify(analysisRow.technical.slice(0, 4))}`
-      : null,
-    Array.isArray(analysisRow?.business) && analysisRow.business.length
-      ? `Business findings: ${JSON.stringify(analysisRow.business.slice(0, 4))}`
-      : null,
-    painPoints?.length
-      ? `Pain points: ${painPoints.map((point) => `${point.severity}: ${point.title}`).join("; ")}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const pitchContext = buildPitchContext({
+    opportunity,
+    analysisRow: analysisRow ?? null,
+    painPoints: painPoints ?? [],
+  });
+
+  const analysisSummary = pitchContext.summary;
 
   const opportunityForCompose = {
     ...opportunity,
@@ -235,7 +226,7 @@ export async function prepareOutreachWorkspace(
         services: serviceLabels,
         opportunity: opportunityForCompose,
         contact: { ...contact, businessName: contact.businessName ?? companyName },
-        extra: analysisSummary || undefined,
+        pitchContext,
       });
       subject = generated.subject;
       body = generated.body;
@@ -262,6 +253,7 @@ export async function prepareOutreachWorkspace(
     subject,
     body,
     analysisSummary,
+    pitchContext,
     companyName,
     resetKey: `${opportunity.id}:${opportunity.domain}:${contact.email ?? "none"}:${analysisRow?.created_at ?? "none"}`,
   };

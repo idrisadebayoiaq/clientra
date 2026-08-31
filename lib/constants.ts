@@ -50,8 +50,9 @@ export const FRESHNESS_OPTIONS = [
 export const APP_NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
   { href: "/discover", label: "Discover", icon: "Compass" },
-  { href: "/websites", label: "Website Opportunities", icon: "Globe" },
-  { href: "/analyze", label: "Analyze a website", icon: "Search" },
+  { href: "/websites", label: "Find Opportunity", icon: "Globe" },
+  { href: "/saved-leads", label: "Saved Leads", icon: "Bookmark" },
+  { href: "/analyze", label: "Audit Website", icon: "Search" },
   { href: "/problems", label: "Problem Opportunities", icon: "MessageSquareWarning" },
   { href: "/jobs", label: "Job Opportunities", icon: "Briefcase" },
   { href: "/leads", label: "Leads", icon: "Users" },

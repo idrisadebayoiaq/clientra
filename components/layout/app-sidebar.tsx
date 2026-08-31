@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import {
   Bell,
+  Bookmark,
   Briefcase,
   ChartColumn,
   CircleHelp,
@@ -32,6 +33,7 @@ const icons = {
   LayoutDashboard,
   Compass,
   Globe,
+  Bookmark,
   MessageSquareWarning,
   Briefcase,
   Users,

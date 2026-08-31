@@ -2,6 +2,7 @@ import { AppPageShell } from "@/components/app/page-shell";
 import { OutreachComposer } from "@/components/app/outreach-composer";
 import { NotConfiguredState } from "@/components/ui/feedback";
 import { Card } from "@/components/ui/primitives";
+import { ensureOpportunityAudited } from "@/app/(app)/analyze/actions";
 import { isOpenRouterConfigured } from "@/lib/env";
 import { prepareOutreachWorkspace } from "@/lib/outreach/workspace";
 import { getAuthenticatedUser } from "@/lib/supabase/server";
@@ -12,11 +13,15 @@ export const maxDuration = 60;
 export default async function OutreachPage({
   searchParams,
 }: {
-  searchParams: Promise<{ opportunity?: string; website?: string; refresh?: string }>;
+  searchParams: Promise<{ opportunity?: string; website?: string; refresh?: string; audit?: string }>;
 }) {
-  const { opportunity: opportunityId, website: websiteId, refresh } = await searchParams;
+  const { opportunity: opportunityId, website: websiteId, refresh, audit } = await searchParams;
   const { supabase, user } = await getAuthenticatedUser();
   if (!user) return null;
+
+  if (audit === "1" && opportunityId) {
+    await ensureOpportunityAudited(opportunityId);
+  }
 
   const { data: opportunity } = opportunityId
     ? await supabase.from("opportunities").select("*").eq("id", opportunityId).maybeSingle()

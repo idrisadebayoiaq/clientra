@@ -7,7 +7,7 @@ import { buildHeuristicAnalysis } from "@/lib/analysis/from-evidence";
 import { parseJsonFromModel } from "@/lib/ai/json";
 import { getModel } from "@/lib/ai/client";
 import { isOpenRouterConfigured } from "@/lib/env";
-import { shouldPersistWebsite } from "@/lib/opportunities/domains";
+import { shouldPersistWebsite, canAuditWebsite } from "@/lib/opportunities/domains";
 import {
   enrichWebsiteContact,
   hasPublicContact,
@@ -34,6 +34,31 @@ function publicError(error: unknown) {
   const message = error instanceof Error ? error.message : "Analysis failed";
   if (/api[_-]?key|bearer|authorization|sk-|secret/i.test(message)) return "Analysis failed";
   return message.slice(0, 220);
+}
+
+export async function ensureOpportunityAudited(opportunityId: string) {
+  const { supabase, user } = await getAuthenticatedUser();
+  if (!user) return { ok: false as const, error: "Sign in required" };
+
+  const { data: opportunity } = await supabase
+    .from("opportunities")
+    .select("id, status, website_id, domain")
+    .eq("id", opportunityId)
+    .maybeSingle();
+  if (!opportunity) return { ok: false as const, error: "Opportunity not found" };
+  if (opportunity.status === "analyzed") return { ok: true as const, skipped: true as const };
+
+  const { data: website } = opportunity.website_id
+    ? await supabase.from("websites").select("id, domain").eq("id", opportunity.website_id).maybeSingle()
+    : { data: null };
+
+  const domain = website?.domain ?? opportunity.domain;
+  if (!canAuditWebsite(domain)) {
+    return { ok: true as const, skipped: true as const };
+  }
+
+  const targetId = website?.id ?? opportunity.id;
+  return runAnalysis(targetId);
 }
 
 function mergeParsed(
@@ -144,15 +169,16 @@ export async function runAnalysis(targetId: string) {
       aiWarning = "OpenRouter is not configured. Showing captured page evidence only.";
     } else {
       const prompt = `Return JSON only with this shape:
-{"overview":{"businessType":"string","industry":"string","label":"detected|possible|unable_to_determine"},"technical":[{"title":"string","label":"detected|possible|unable_to_determine","evidence":"string"}],"business":[{"title":"string","label":"detected|possible|unable_to_determine","evidence":"string"}],"painPoints":[{"title":"string","severity":"critical|high|medium|low","confidence":"detected|possible|unable_to_determine","why":"string"}],"score":0,"scoreExplanation":"string","estimatedNeed":"string","matchingService":"string"}
+{"overview":{"businessType":"string","industry":"string","label":"detected|possible|unable_to_determine","summary":"string","gaps":["string"],"pitchAngles":[{"angle":"string","evidence":"string","service":"string"}]},"technical":[{"title":"string","label":"detected|possible|unable_to_determine","evidence":"string"}],"business":[{"title":"string","label":"detected|possible|unable_to_determine","evidence":"string"}],"painPoints":[{"title":"string","severity":"critical|high|medium|low","confidence":"detected|possible|unable_to_determine","why":"string"}],"score":0,"scoreExplanation":"string","estimatedNeed":"string","matchingService":"string"}
 
 Rules:
 - Use only the evidence JSON. Never invent contacts, traffic, revenue, Core Web Vitals, or stack items.
-- If page.fetched is true, analyze the title, meta description, headings, technologies, platform, and text snippet.
+- gaps: 3-6 specific things the website/business lacks or could improve (pitch opportunities).
+- pitchAngles: 2-4 outreach hooks a freelancer could use, each tied to evidence and a service to offer.
+- If page.fetched is true, analyze title, meta description, headings, technologies, platform, and text snippet.
 - If page.fetched is false but listing or partial page fields exist, use only those fields and label unsupported items unable_to_determine.
 - A normal domain like example.com is a custom domain. Never say the business lacks a custom domain.
-- Title matching the domain is only a finding if page.title was actually captured and is weak.
-- Pain points must cite evidence. Absence of urlscan data is not a client pain point.
+- Pain points must cite evidence and be pitchable (SEO, mobile, speed, trust, conversion, outdated design, etc.).
 
 Evidence:
 ${JSON.stringify(evidence)}`;

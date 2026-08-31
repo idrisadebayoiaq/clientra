@@ -44,3 +44,9 @@ export function isJunkDiscoveryDomain(domain: string | null | undefined) {
 export function shouldPersistWebsite(domain: string | null | undefined) {
   return Boolean(domain) && !isJunkDiscoveryDomain(domain);
 }
+
+export function canAuditWebsite(domain: string | null | undefined) {
+  if (!domain) return false;
+  if (domain.endsWith(".localbiz")) return false;
+  return shouldPersistWebsite(domain);
+}

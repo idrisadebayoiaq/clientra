@@ -32,9 +32,9 @@ export function AnalyzeOwnWebsiteForm({ compact = false }: { compact?: boolean }
 
   return (
     <Card className={compact ? "p-4" : "p-5"}>
-      <h2 className="text-base font-semibold">Analyze a website you found</h2>
+      <h2 className="text-base font-semibold">Audit a website</h2>
       <p className="mt-1 text-sm text-ink-muted">
-        Paste any public URL. Clientra will save it to your workspace, then open the analysis page.
+        Paste any public URL. Clientra saves it to your workspace, audits the site, and opens the audit page.
       </p>
       <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
@@ -50,7 +50,7 @@ export function AnalyzeOwnWebsiteForm({ compact = false }: { compact?: boolean }
           />
         </div>
         <Button type="submit" disabled={pending}>
-          {pending ? "Opening…" : "Analyze website"}
+          {pending ? "Opening…" : "Audit website"}
         </Button>
       </form>
       {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}

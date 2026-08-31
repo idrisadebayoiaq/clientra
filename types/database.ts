@@ -1292,6 +1292,76 @@ export type Database = {
         }
         Relationships: []
       }
+      google_places_search_sessions: {
+        Row: {
+          category: string
+          id: string
+          last_batch_id: string | null
+          location: string
+          next_page_token: string | null
+          search_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category: string
+          id?: string
+          last_batch_id?: string | null
+          location: string
+          next_page_token?: string | null
+          search_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          id?: string
+          last_batch_id?: string | null
+          location?: string
+          next_page_token?: string | null
+          search_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_places_search_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_places_seen: {
+        Row: {
+          created_at: string
+          id: string
+          place_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          place_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          place_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_places_seen_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_opportunities: {
         Row: {
           created_at: string
@@ -1883,6 +1953,7 @@ export type Database = {
         | "fisherleads"
         | "apollo"
         | "adzuna"
+        | "google_places"
         | "manual"
         | "other"
       opportunity_status:
@@ -2104,6 +2175,7 @@ export const Constants = {
         "fisherleads",
         "apollo",
         "adzuna",
+        "google_places",
         "manual",
         "other",
       ],

@@ -273,6 +273,7 @@ export async function saveOpportunity(opportunityId: string) {
   }
 
   revalidateDiscovery();
+  revalidatePath("/saved-leads");
   return { ok: true as const };
 }
 

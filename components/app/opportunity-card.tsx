@@ -59,8 +59,8 @@ export function OpportunityCard({
         <ScoreRing score={opportunity.opportunity_score} />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <ButtonLink href={`/analyze/${opportunity.id}`} size="sm">
-          Analyze
+        <ButtonLink href={`/analyze/${opportunity.website_id ?? opportunity.id}`} size="sm">
+          Audit
         </ButtonLink>
         <form action={saveOpportunityForm.bind(null, opportunity.id)}>
           <Button type="submit" variant="outline" size="sm">
